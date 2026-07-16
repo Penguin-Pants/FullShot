@@ -5,3 +5,4 @@ dist/
 .vite/
 dist-test/
 test/e2e/out/
+*.zip
