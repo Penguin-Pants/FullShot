@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>FullShot test — long page</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; }
+      body { font: 20px/1.4 Arial, sans-serif; width: 900px; }
+      /* A fixed header that must appear exactly once (at the very top) in the capture. */
+      #fixed-header {
+        position: fixed; top: 0; left: 0; right: 0; height: 60px;
+        background: #111827; color: #f9fafb; display: flex; align-items: center;
+        padding: 0 20px; z-index: 100; font-weight: 700;
+      }
+      /* A sticky sub-nav — also must not be duplicated on every tile. */
+      #sticky-nav {
+        position: sticky; top: 60px; height: 40px; background: #2563eb; color: #fff;
+        display: flex; align-items: center; padding: 0 20px; z-index: 90;
+      }
+      main { padding-top: 100px; }
+      section {
+        height: 700px; display: flex; align-items: center; justify-content: center;
+        font-size: 96px; font-weight: 800; color: #0f172a; position: relative;
+      }
+      section:nth-child(odd) { background: #e0f2fe; }
+      section:nth-child(even) { background: #fce7f3; }
+      .marker { position: absolute; left: 8px; top: 8px; font-size: 16px; color: #64748b; }
+    </style>
+  </head>
+  <body>
+    <div id="fixed-header">FIXED HEADER — should appear once</div>
+    <div id="sticky-nav">Sticky nav</div>
+    <main>
+      <section><span class="marker">top</span>1</section>
+      <section>2</section>
+      <section>3</section>
+      <section>4</section>
+      <section>5</section>
+      <section>6</section>
+      <section>7</section>
+      <section>8</section>
+      <section>9</section>
+      <section>10</section>
+      <section>11</section>
+      <section><span class="marker">bottom</span>12</section>
+    </main>
+  </body>
+</html>

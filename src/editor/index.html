@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FullShot — Editor</title>
+    <link rel="stylesheet" href="./editor.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar__group brand">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <span class="brand__name">FullShot</span>
+      </div>
+
+      <div class="topbar__group tools" id="tools" role="toolbar" aria-label="Annotation tools">
+        <button class="tool" data-tool="select" title="Select / move (V)">Select</button>
+        <button class="tool" data-tool="crop" title="Crop (C)">Crop</button>
+        <button class="tool" data-tool="redact" title="Pixelate / redact (R)">Redact</button>
+        <button class="tool" data-tool="arrow" title="Arrow (A)">Arrow</button>
+        <button class="tool" data-tool="rect" title="Rectangle (B)">Box</button>
+        <button class="tool" data-tool="ellipse" title="Ellipse (E)">Ellipse</button>
+        <button class="tool" data-tool="text" title="Text (T)">Text</button>
+        <button class="tool" data-tool="pen" title="Pen (P)">Pen</button>
+        <button class="tool" data-tool="highlight" title="Highlighter (H)">Mark</button>
+      </div>
+
+      <div class="topbar__group props">
+        <label class="swatch" title="Color">
+          <input type="color" id="color" value="#ef4444" />
+        </label>
+        <label class="range" title="Stroke width">
+          <input type="range" id="width" min="1" max="40" value="4" />
+        </label>
+        <button class="btn-sm" id="delete" title="Delete selected (Del)">Delete</button>
+        <button class="btn-sm" id="reset-crop" title="Reset crop" hidden>Reset crop</button>
+      </div>
+
+      <div class="topbar__group history">
+        <button class="btn-sm" id="undo" title="Undo (Ctrl+Z)">Undo</button>
+        <button class="btn-sm" id="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+        <span class="zoom">
+          <button class="btn-sm" id="zoom-out" title="Zoom out">−</button>
+          <button class="btn-sm" id="zoom-fit" title="Fit width">Fit</button>
+          <button class="btn-sm" id="zoom-in" title="Zoom in">+</button>
+        </span>
+      </div>
+
+      <div class="topbar__group export">
+        <button class="btn-sm" id="export-png">PNG</button>
+        <button class="btn-sm" id="export-jpg">JPEG</button>
+        <button class="btn-sm btn-accent" id="export-pdf">PDF</button>
+        <button class="btn-sm" id="copy">Copy</button>
+      </div>
+    </header>
+
+    <div class="stage" id="stage">
+      <div class="stage__inner" id="stage-inner">
+        <canvas id="c"></canvas>
+      </div>
+      <div class="loading" id="loading">Loading capture…</div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <script type="module" src="./editor.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FullShot</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <header class="brand">
+      <span class="brand__mark" aria-hidden="true"></span>
+      <span class="brand__name">FullShot</span>
+    </header>
+
+    <main>
+      <button id="capture-edit" class="btn btn--primary">
+        <span class="btn__title">Capture full page</span>
+        <span class="btn__sub">Scroll, stitch &amp; open the editor</span>
+      </button>
+
+      <div class="quick">
+        <span class="quick__label">Quick export</span>
+        <div class="quick__row">
+          <button class="btn btn--ghost" data-mode="png">PNG</button>
+          <button class="btn btn--ghost" data-mode="jpeg">JPEG</button>
+          <button class="btn btn--ghost" data-mode="pdf">PDF</button>
+        </div>
+      </div>
+
+      <div id="status" class="status" hidden>
+        <div class="status__text" id="status-text">Working…</div>
+        <div class="status__bar"><div class="status__fill" id="status-fill"></div></div>
+      </div>
+    </main>
+
+    <footer>
+      <a id="open-options" href="#">Options</a>
+      <span class="hint">Shortcut: Alt+Shift+P</span>
+    </footer>
+
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>

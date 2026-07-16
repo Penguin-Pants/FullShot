@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FullShot — Options</title>
+    <link rel="stylesheet" href="./options.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="brand">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <h1>FullShot</h1>
+      </header>
+      <p class="lede">
+        Capture an entire web page, annotate it, and export as PNG, JPEG, or PDF — everything runs
+        locally in your browser. No account, no upload.
+      </p>
+
+      <section class="card">
+        <label class="field">
+          <span class="field__label">Default action for “Quick export → PDF/PNG/JPEG”</span>
+          <span class="field__hint">The main button always opens the editor.</span>
+        </label>
+
+        <label class="row">
+          <input type="checkbox" id="openEditor" />
+          <span>Open the editor after a full-page capture</span>
+        </label>
+
+        <label class="row row--stack">
+          <span>JPEG / PDF quality</span>
+          <input type="range" id="jpegQuality" min="0.5" max="1" step="0.01" />
+          <output id="jpegQualityOut"></output>
+        </label>
+
+        <label class="row">
+          <input type="checkbox" id="stamp" />
+          <span>Stamp source URL &amp; date onto exports</span>
+        </label>
+      </section>
+
+      <p class="saved" id="saved" hidden>Saved.</p>
+    </div>
+    <script type="module" src="./options.ts"></script>
+  </body>
+</html>
