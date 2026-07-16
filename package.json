@@ -1,0 +1,29 @@
+{
+  "name": "fullshot",
+  "version": "0.1.0",
+  "description": "FullShot \u2014 full page screenshot capture with an annotation editor and local PDF/PNG export.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:only": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "build:test": "FULLSHOT_TEST=1 vite build --outDir dist-test",
+    "test:e2e": "npm run build:test && xvfb-run -a node test/e2e/run.mjs"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0-beta.28",
+    "@types/chrome": "^0.0.270",
+    "@types/node": "^20.19.43",
+    "playwright-core": "^1.61.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "fabric": "^6.4.3",
+    "jspdf": "^2.5.1"
+  }
+}
