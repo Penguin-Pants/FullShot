@@ -4,6 +4,8 @@ dist/
 .DS_Store
 .vite/
 dist-test/
+dist-firefox/
+dist-firefox-test/
 test/e2e/out/
 *.zip
 store-assets/
