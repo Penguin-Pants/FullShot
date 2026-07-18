@@ -119,9 +119,13 @@ npm run lint:firefox    # Mozilla's own manifest/source validator (web-ext lint)
 ```
 
 `lint:firefox` currently reports 0 errors and a handful of warnings, all traced to vendored
-libraries (fabric.js, jsPDF/html2canvas, DOMPurify) rather than this project's own code — expected
-for any extension bundling those. Before relying on a change in real Firefox, load it manually via
-`about:debugging` or `web-ext run` (see [Firefox build](#firefox-build) above).
+libraries (fabric.js, jsPDF) rather than this project's own code — expected for any extension
+bundling those. `html2canvas` and `dompurify` (jsPDF's optional `.html()`-plugin dependencies,
+never invoked since `exportPdf.ts` only calls `pdf.output('blob')`) are excluded from both bundles
+via `build.rollupOptions.external` in `vite.config.ts`/`vite.config.firefox.ts` — this both shrinks
+the build by ~220KB and removes the warnings those two libraries triggered. Before relying on a
+change in real Firefox, load it manually via `about:debugging` or `web-ext run` (see
+[Firefox build](#firefox-build) above).
 
 ## License
 
