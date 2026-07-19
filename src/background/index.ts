@@ -36,18 +36,21 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-chrome.runtime.onMessage.addListener((msg: StartCaptureMsg, _sender, sendResponse) => {
-  if (msg?.type === 'START_CAPTURE') {
-    runCapture(msg.mode)
-      .then(() => sendResponse({ ok: true }))
-      .catch((err) => {
-        const message = err instanceof Error ? err.message : String(err);
-        broadcast({ type: 'CAPTURE_ERROR', message });
-        sendResponse({ ok: false, error: message });
-      });
-    return true; // keep the message channel open for the async response
-  }
-  return undefined;
+chrome.runtime.onMessage.addListener((msg: StartCaptureMsg) => {
+  if (msg?.type !== 'START_CAPTURE') return undefined;
+  // Return the promise itself rather than `return true` + a later sendResponse() call. The capture
+  // loop below awaits many setTimeout-based delays over several seconds, and Firefox's event-page
+  // background suspends on idle timers regardless of the `return true` idiom — it only stays
+  // resident for as long as a promise returned directly from the listener is still pending. Chrome
+  // (and its MV3 promise-based message API) honors a returned promise the same way, so this is a
+  // strict improvement on both targets, not a Firefox-only branch.
+  return runCapture(msg.mode)
+    .then(() => ({ ok: true as const }))
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      broadcast({ type: 'CAPTURE_ERROR', message });
+      return { ok: false as const, error: message };
+    });
 });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
