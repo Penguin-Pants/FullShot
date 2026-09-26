@@ -126,7 +126,11 @@ chrome.runtime.onMessage.addListener((msg: StartCaptureMessage, _sender, sendRes
       sendResponse({ ok: false, error: err.message, stage: err.stage } satisfies StartCaptureResponse);
     },
   );
-  return true; // keep the message channel open for the async response
+  // Keep the channel open and answer with sendResponse(): that works in Chrome and Firefox, while
+  // Chrome ignores a promise returned from the listener (verified on Chrome 141: the sender gets no
+  // response). Firefox does not suspend the event page mid-capture either way: every extension API
+  // call the capture makes resets its idle timer (verified with a 30+ s capture).
+  return true;
 });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

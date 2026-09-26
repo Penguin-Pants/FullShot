@@ -30,6 +30,9 @@ export default defineConfig({
         // so — same as the Chrome config — it must be listed explicitly to be built.
         editor: resolve(__dirname, 'src/editor/index.html'),
       },
+      // See vite.config.ts for why these are excluded: unused optional dependencies of jsPDF's
+      // .html() plugin, which this extension never calls.
+      external: ['html2canvas', 'dompurify'],
     },
   },
 });
