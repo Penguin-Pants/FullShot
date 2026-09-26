@@ -21,9 +21,3 @@ export async function blobToDataUrl(blob: Blob): Promise<string> {
   const base64 = arrayBufferToBase64(buf);
   return `data:${blob.type || 'application/octet-stream'};base64,${base64}`;
 }
-
-/** Decode a data: URL (any type) into a Blob. */
-export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  const res = await fetch(dataUrl);
-  return res.blob();
-}

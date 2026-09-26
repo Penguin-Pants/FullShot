@@ -36,14 +36,8 @@ export function sharedManifestFields() {
       '48': 'icons/icon48.png',
       '128': 'icons/icon128.png',
     },
-    web_accessible_resources: [
-      {
-        // The editor page reads the pending capture from IndexedDB; no page assets are exposed
-        // to sites. Editor/options are opened by the extension itself.
-        resources: ['src/editor/index.html', 'assets/*'],
-        matches: ['<all_urls>'],
-      },
-    ],
+    // No web_accessible_resources: the editor and options pages are opened by the extension
+    // itself, so no website ever needs to load (or can probe for) the extension's files.
   };
 }
 

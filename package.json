@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "build:test": "FULLSHOT_TEST=1 vite build --outDir dist-test",
     "test:e2e": "npm run build:test && xvfb-run -a node test/e2e/run.mjs",
+    "test:e2e:firefox": "npm run build:firefox && xvfb-run -a -s \"-screen 0 2600x2000x24\" node test/e2e/firefox.mjs",
     "build:firefox": "tsc --noEmit && node scripts/build-firefox.mjs",
     "build:firefox:only": "node scripts/build-firefox.mjs",
     "build:firefox:test": "FULLSHOT_TEST=1 FIREFOX_OUT_DIR=dist-firefox-test node scripts/build-firefox.mjs",

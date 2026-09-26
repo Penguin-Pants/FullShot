@@ -1,4 +1,5 @@
 import { buildFilename } from './filename';
+import { downloadBlob } from './download';
 
 function canvasToBlob(
   canvas: HTMLCanvasElement,
@@ -24,17 +25,7 @@ export async function downloadCanvas(
   const type = format === 'jpeg' ? 'image/jpeg' : 'image/png';
   const ext = format === 'jpeg' ? 'jpg' : 'png';
   const blob = await canvasToBlob(canvas, type, format === 'jpeg' ? quality : undefined);
-  const url = URL.createObjectURL(blob);
-  try {
-    await chrome.downloads.download({
-      url,
-      filename: buildFilename(pageUrl, Date.now(), ext),
-      saveAs: false,
-    });
-  } finally {
-    // Give the download a beat to start before revoking.
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  }
+  await downloadBlob(blob, buildFilename(pageUrl, Date.now(), ext));
 }
 
 /** Copy a rendered canvas to the clipboard as a PNG. */

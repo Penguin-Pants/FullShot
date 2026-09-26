@@ -39,6 +39,9 @@ async function buildBackground() {
     format: 'iife',
     target: 'es2022',
     define: { __FULLSHOT_TEST__: JSON.stringify(isTest) },
+    // jsPDF (used for Quick PDF) lazy-imports these only for its html()/SVG features, which
+    // FullShot never calls; keep them out of the background bundle.
+    external: ['html2canvas', 'dompurify', 'canvg'],
     // Minify so `if (__FULLSHOT_TEST__)` folds to a constant and the dead branch (which contains
     // the test-only hook) is actually stripped from the production bundle, not just unreachable —
     // matching the Chrome/Rollup build, which tree-shakes it out entirely.

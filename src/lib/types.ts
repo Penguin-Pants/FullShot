@@ -1,20 +1,23 @@
-/** Output image formats the extension can produce directly (before/without the editor). */
-export type ImageFormat = 'png' | 'jpeg';
+/** What the popup can ask for: open the editor, or save directly in one format. */
+export type CaptureMode = 'edit' | 'png' | 'jpeg' | 'pdf';
 
-/** Everything the content script measures about the page before scrolling. */
+/** Everything the injected page script measures about the page before scrolling. */
 export interface PageMetrics {
   /** Full scrollable width in CSS px. */
   fullWidth: number;
   /** Full scrollable height in CSS px. */
   fullHeight: number;
-  /** Visible viewport width in CSS px. */
+  /** Visible viewport width in CSS px, excluding any classic scrollbar. */
   viewportWidth: number;
-  /** Visible viewport height in CSS px. */
+  /** Visible viewport height in CSS px, excluding any classic scrollbar. */
   viewportHeight: number;
-  /** devicePixelRatio at capture time (captureVisibleTab returns physical pixels). */
+  /** window.innerWidth in CSS px: the width that captureVisibleTab returns, scrollbar included. */
+  innerWidth: number;
+  /** window.devicePixelRatio as the page reports it (may be spoofed; see stitch.ts). */
   devicePixelRatio: number;
-  /** Width of the scrollbar gutter in CSS px, so it can be cropped out of tiles. */
-  scrollbarWidth: number;
+  /** Scroll position before the capture started (restored afterwards). */
+  scrollX: number;
+  scrollY: number;
 }
 
 /** One captured viewport tile plus where it belongs in the final image. */
@@ -27,59 +30,37 @@ export interface CaptureTile {
   y: number;
 }
 
-/** A finished capture handed to the popup / editor / downloader. */
-export interface CaptureResult {
-  /** data: URL of the stitched full-page image (PNG). */
-  dataUrl: string;
-  /** Final pixel width. */
-  width: number;
-  /** Final pixel height. */
-  height: number;
-  /** Source page URL, for stamping / filenames. */
-  pageUrl: string;
-  /** Source page title, for filenames. */
-  pageTitle: string;
-  /** Capture timestamp (ms since epoch). */
-  capturedAt: number;
-}
-
 /* ------------------------------------------------------------------ *
- * Message contract. Every message has a `type` discriminator so the
- * receivers (background, content, editor) can switch exhaustively.
+ * Message contract between the popup and the background.
  * ------------------------------------------------------------------ */
 
-export type Message =
-  | { type: 'CAPTURE_FULL_PAGE' }
-  | { type: 'CAPTURE_VISIBLE'; /* asks background to snapshot the current viewport */ }
+/** Popup → background. `tabId` is the tab the popup was opened for (the activeTab grant). */
+export interface StartCaptureMessage {
+  type: 'START_CAPTURE';
+  mode: CaptureMode;
+  tabId: number;
+}
+
+/** Background → popup(s), broadcast while a capture runs. */
+export type CaptureEvent =
   | { type: 'CAPTURE_PROGRESS'; done: number; total: number }
-  | { type: 'CAPTURE_DONE'; result: CaptureResult }
-  | { type: 'CAPTURE_ERROR'; message: string }
-  | { type: 'OPEN_EDITOR'; captureId: string };
+  | { type: 'CAPTURE_DONE' }
+  | { type: 'CAPTURE_ERROR'; message: string };
 
-export type CaptureVisibleResponse =
-  | { ok: true; dataUrl: string }
-  | { ok: false; error: string };
-
-/** Session-storage key under which a pending capture is stashed for the editor tab. */
-export const PENDING_CAPTURE_KEY = 'fullshot:pendingCapture';
+/** Background → popup, the response to START_CAPTURE. */
+export type StartCaptureResponse = { ok: true } | { ok: false; error: string; stage: string };
 
 /** Sync-storage key for user options. */
 export const OPTIONS_KEY = 'fullshot:options';
 
 export interface FullShotOptions {
-  /** Default one-click export format from the popup. */
-  defaultFormat: ImageFormat | 'pdf';
   /** JPEG quality 0..1 (also used for the PDF's JPEG-encoded pages). */
   jpegQuality: number;
-  /** Open the editor automatically after capture instead of downloading. */
-  openEditorAfterCapture: boolean;
-  /** Stamp the source URL + date onto exports. */
+  /** Stamp the source URL + date onto PDF pages. */
   stampUrlAndDate: boolean;
 }
 
 export const DEFAULT_OPTIONS: FullShotOptions = {
-  defaultFormat: 'png',
   jpegQuality: 0.92,
-  openEditorAfterCapture: true,
   stampUrlAndDate: false,
 };

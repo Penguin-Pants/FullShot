@@ -1,6 +1,6 @@
 # FullShot Privacy Policy
 
-_Last updated: 2026-07-16_
+_Last updated: 2026-09-26_
 
 FullShot ("the extension") is a browser extension that captures full-page screenshots, lets you
 annotate them, and saves them as PNG, JPEG, or PDF files. This policy explains how it handles your
@@ -18,11 +18,12 @@ device.
   its shortcut), the extension reads the rendered pixels of the tab you are viewing so it can
   produce a screenshot. It uses the `activeTab` model, so it has access only to that one tab, only
   at the moment you trigger a capture — never in the background and never to other sites.
-- **Your captured images.** A finished screenshot is stored temporarily in your browser's local
-  storage (IndexedDB) so it can be opened in the editor. It never leaves your device and is removed
-  after use.
-- **Your preferences.** Settings such as your default export format and image quality are saved
-  locally with the browser's storage API.
+- **Your captured images.** When you choose "Capture full page", the screenshot is stored in your
+  browser's local storage (IndexedDB) so the editor can open it. Quick exports are saved straight
+  to your Downloads folder and are not stored. FullShot keeps only the 10 most recent editor
+  captures and deletes older ones automatically. Nothing leaves your device.
+- **Your preferences.** Settings such as image quality and whether to stamp the page address on
+  PDFs are saved locally with the browser's storage API.
 - **Saving files.** When you export, the extension uses the browser's downloads feature to save the
   image or PDF to your Downloads folder. Nothing is uploaded.
 
@@ -36,8 +37,8 @@ device.
 
 ## Data retention
 
-Captured images are held in local browser storage only long enough to edit and export them.
-Preferences remain in local browser storage until you change them or remove the extension.
+Captures opened in the editor stay in local browser storage until 10 newer ones replace them, so
+the editor can reload them. Quick exports are not stored. Preferences remain in local browser storage until you change them or remove the extension.
 Uninstalling the extension removes its local data.
 
 ## Permissions

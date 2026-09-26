@@ -61,8 +61,12 @@ Before submitting to addons.mozilla.org, replace the placeholder extension id in
 
 - Click the toolbar icon (or press **Alt+Shift+P**) → **Capture full page**. The stitched image
   opens in the editor.
-- **Quick export** buttons in the popup save PNG/JPEG directly, or open the editor pre-set to
-  export a PDF.
+- **Quick export** buttons in the popup save PNG, JPEG, or PDF straight to your downloads: the
+  same capture as the main button, without opening the editor. You stay on the page, so you can
+  export another format right away.
+- FullShot captures the tab you opened it on. If that page reloads or navigates before you pick a
+  format (or you click FullShot while it is still loading), the browser withdraws FullShot's access
+  to it; FullShot then asks you to click its button again rather than failing with a browser error.
 - In the editor, pick a tool, annotate, then export **PNG / JPEG / PDF** or **Copy** to the
   clipboard. Keyboard: `V` select, `C` crop, `R` redact, `A` arrow, `B` box, `E` ellipse, `T` text,
   `P` pen, `H` highlighter, `Ctrl/⌘+Z` undo, `Ctrl/⌘+Shift+Z` redo.
@@ -74,13 +78,13 @@ Before submitting to addons.mozilla.org, replace the placeholder extension id in
 | MV3 manifest — shared fields | `src/manifest.shared.ts` |
 | MV3 manifest — Chrome/Edge | `src/manifest.config.ts`, `vite.config.ts` (`@crxjs/vite-plugin`) → `dist/` |
 | MV3 manifest — Firefox | `src/manifest.firefox.ts`, `vite.config.firefox.ts`, `scripts/build-firefox.mjs` → `dist-firefox/` |
-| Capture orchestration | `src/background/index.ts` (throttled `captureVisibleTab`, retry/backoff) |
+| Capture orchestration | `src/background/index.ts` (target-tab checks, one capture at a time, throttled `captureVisibleTab`, stage-tagged errors) |
 | Page measurement / scroll / fixed-element hiding | `src/lib/pageScripts.ts` (injected via `executeScript({ func })`) |
 | Tile stitching | `src/lib/stitch.ts` (OffscreenCanvas, DPR-aware, canvas-size guard) |
 | Capture hand-off to editor | `src/lib/db.ts` (IndexedDB, holds multi-MB blobs) |
 | Popup / options UI | `src/popup/*`, `src/options/*` |
 | Annotation editor | `src/editor/*` (fabric.js v6) |
-| Exports | `src/lib/exportImage.ts` (PNG/JPEG), `src/lib/exportPdf.ts` (jsPDF, smart split) |
+| Exports | `src/lib/exportPdf.ts` (jsPDF, smart split; used by Quick PDF and the editor), `src/lib/exportImage.ts` (editor PNG/JPEG), `src/lib/download.ts` (object URL, or data: URL in Chrome's service worker) |
 
 **Why Firefox needs a second build pipeline, not just a second manifest:** Firefox's MV3
 `background` key doesn't support `service_worker` — it loads a plain `scripts` array as an event
@@ -88,40 +92,65 @@ page instead. `scripts/build-firefox.mjs` reuses the exact same `src/popup`, `sr
 `src/editor` page bundles Chrome uses (ordinary extension pages, so ES modules are fine there), and
 only handles the background script differently: esbuild bundles it into one dependency-free IIFE,
 sidestepping any question of Firefox background ES-module support. `manifest.shared.ts` keeps every
-field that's genuinely identical (permissions, icons, action, commands, web-accessible resources)
+field that's genuinely identical (permissions, icons, action, commands)
 in one place so the two manifests can't silently drift apart.
 
-**Capture flow:** popup → background injects `prepAndMeasure` → computes a scroll grid → for each
-step injects `scrollToStep` (hiding fixed/sticky elements past the first row), throttles, and calls
-`captureVisibleTab` → `stitchTiles` composites everything on an `OffscreenCanvas` → the blob is
-stored in IndexedDB and the editor tab opens.
+**Capture flow:** the popup resolves the tab it was opened for (the tab the browser just granted
+`activeTab` for) → the background confirms that tab is still showing and still accessible → injects
+`prepAndMeasure` (hides scrollbars, measures via `document.scrollingElement`, records fixed/sticky
+elements) → computes a scroll grid → for each step injects `scrollToStep` (instant scroll, hiding
+fixed/sticky elements past the first row), throttles, checks the tab is still the one showing, and
+calls `captureVisibleTab` → restores the page → `stitchTiles` composites everything on one
+`OffscreenCanvas` (pixel scale taken from the captured tiles) → that canvas is encoded as PNG, JPEG,
+or PDF and downloaded, or stored in IndexedDB for the editor tab.
+
+Failures name the stage that failed (preparing the page, capturing, saving, …) in the popup, and the
+background logs a `[FullShot] capture failed` entry with the stage, tab id, page origin, page
+and viewport dimensions, device pixel ratio, pixel scale, tile, and scroll position to the browser
+console (no page content).
 
 ## Testing
 
-An end-to-end harness loads the built extension in Chromium and drives a real capture + editor +
-export on a long fixture page, asserting on real output (stitched height, fixed-header-appears-once,
-PNG/PDF file signatures):
+Both browsers have an end-to-end harness that loads the built extension, captures a long fixture
+page (fixed header, sticky nav, 8540 px tall), and checks the real output: stitched dimensions,
+every section present, header captured once, no scrollbar painted into the tiles, PNG/JPEG/PDF
+structure.
+
+**Chrome** — drives Chromium via Playwright:
 
 ```bash
 npm run test:e2e     # builds a test bundle and runs the harness under xvfb
 ```
 
-The test bundle (`FULLSHOT_TEST=1`) adds a temporary `<all_urls>` host permission and small test
-hooks so the harness can trigger a capture without a real toolbar click; both are compiled **out**
-of the production build. The same `FULLSHOT_TEST` flag works for the Firefox build too
-(`npm run build:firefox:test`), but there is currently no equivalent live-browser harness for
-Firefox (Chrome's E2E harness drives real Chromium via Playwright; Playwright's Firefox build isn't
-available everywhere Chromium is). Firefox is instead verified statically on every build:
+The test bundle (`FULLSHOT_TEST=1`) adds a temporary `<all_urls>` host permission and a small test
+hook so the harness can trigger a capture without a real toolbar click; both are compiled **out**
+of the production build.
+
+**Firefox** — drives a real Firefox (140+) through its built-in Marionette protocol, with no extra
+dependencies. It tests the **production** build: no test hooks, no host permissions. The toolbar
+button and the popup buttons are clicked with OS-level mouse events, so Firefox grants `activeTab`
+exactly as it does for a person. It repeats every export several times and covers short, already
+scrolled, quirks-mode, smooth-scrolling, zoomed, high-DPI and `resistFingerprinting` pages, reloads,
+navigation, tab switches, overlapping requests, and restricted pages:
+
+```bash
+FIREFOX_BIN=/path/to/firefox npm run test:e2e:firefox
+# options: REPEAT=10 (repetitions), ONLY=quickPngRepeated,lifecycle (scenarios)
+```
+
+It needs a display for the OS-level events (`xvfb-run` is used by the npm script). Results are
+written to `test/e2e/out/firefox/results.json`.
+
+Firefox is also verified statically on every build:
 
 ```bash
 npm run build:firefox   # typecheck + build
 npm run lint:firefox    # Mozilla's own manifest/source validator (web-ext lint) — must be 0 errors
 ```
 
-`lint:firefox` currently reports 0 errors and a handful of warnings, all traced to vendored
-libraries (fabric.js, jsPDF/html2canvas, DOMPurify) rather than this project's own code — expected
-for any extension bundling those. Before relying on a change in real Firefox, load it manually via
-`about:debugging` or `web-ext run` (see [Firefox build](#firefox-build) above).
+`lint:firefox` reports 0 errors and a handful of warnings, all traced to vendored libraries
+(fabric.js, jsPDF/html2canvas, DOMPurify) rather than this project's own code — expected for any
+extension bundling those.
 
 ## License
 
