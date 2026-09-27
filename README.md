@@ -53,9 +53,42 @@ Then load it temporarily:
 (Temporary add-ons are removed when Firefox closes — reload after each restart. `web-ext run`
 does this automatically if you have Firefox installed locally: `npx web-ext run -s dist-firefox`.)
 
-Before submitting to addons.mozilla.org, replace the placeholder extension id in
-`src/manifest.firefox.ts` (`browser_specific_settings.gecko.id`) with your own, then validate with
-`npm run lint:firefox` (wraps Mozilla's `web-ext lint`, the same validator AMO runs on upload).
+Validate the build with `npm run lint:firefox` (wraps Mozilla's `web-ext lint`, the same validator
+AMO runs on upload).
+
+## Publishing on AMO
+
+Commit your changes, then run:
+
+```bash
+npm run package:firefox
+```
+
+It builds `dist-firefox/` and writes two files to `web-ext-artifacts/`:
+
+- `fullshot-<version>.zip`: the add-on. Upload it on addons.mozilla.org.
+- `fullshot-<version>-source.zip`: the source code of the last commit. Upload it when AMO asks for
+  the source code. AMO requires it because the build bundles and minifies the code.
+
+The script stops if tracked files have uncommitted changes, because the two zips must match.
+
+For each new version, increase `version` in `package.json` (e.g. `npm version patch
+--no-git-tag-version`). Keep the add-on ID (`browser_specific_settings.gecko.id` in
+`src/manifest.firefox.ts`) unchanged: AMO identifies FullShot by it.
+
+### Build instructions for AMO reviewers
+
+- Operating system: Ubuntu 24.04 (Linux), the tested environment.
+- Tools: Node.js 22 (tested with 22.22.2) and npm 10 (tested with 10.9.7). Install both from
+  <https://nodejs.org>.
+- Commands, run in the folder that contains `package.json`:
+
+  ```bash
+  npm ci
+  npm run build:firefox
+  ```
+
+- Result: `dist-firefox/`. Its files are identical to the files in the add-on zip.
 
 ## Usage
 
@@ -78,6 +111,7 @@ Before submitting to addons.mozilla.org, replace the placeholder extension id in
 | MV3 manifest — shared fields | `src/manifest.shared.ts` |
 | MV3 manifest — Chrome/Edge | `src/manifest.config.ts`, `vite.config.ts` (`@crxjs/vite-plugin`) → `dist/` |
 | MV3 manifest — Firefox | `src/manifest.firefox.ts`, `vite.config.firefox.ts`, `scripts/build-firefox.mjs` → `dist-firefox/` |
+| AMO packaging | `scripts/package-firefox.mjs` → `web-ext-artifacts/` (add-on zip and source zip) |
 | Capture orchestration | `src/background/index.ts` (target-tab checks, one capture at a time, throttled `captureVisibleTab`, stage-tagged errors) |
 | Page measurement / scroll / fixed-element hiding | `src/lib/pageScripts.ts` (injected via `executeScript({ func })`) |
 | Tile stitching | `src/lib/stitch.ts` (OffscreenCanvas, DPR-aware, canvas-size guard) |

@@ -11,7 +11,7 @@ import { sharedManifestFields, hostPermissions } from './manifest.shared';
  * - `options_ui` instead of `options_page` — the key Firefox documents for MV3 (Chrome accepts
  *   either, but this repo keeps Chrome on `options_page` to match its own docs/convention).
  * - `browser_specific_settings.gecko` — required for permanent installs / signing via AMO.
- *   `id` is a placeholder; replace it with your own before submitting to addons.mozilla.org.
+ *   `id` is FullShot's permanent AMO identity: every future version must keep it unchanged.
  *   `data_collection_permissions` is a (as of 2025) mandatory AMO field; FullShot transmits
  *   nothing off-device (see PRIVACY.md), so it declares "none".
  * - No `minimum_chrome_version`. `strict_min_version` (140) and `gecko_android.strict_min_version`
@@ -33,7 +33,7 @@ export default {
   host_permissions: hostPermissions(),
   browser_specific_settings: {
     gecko: {
-      id: 'fullshot@example.com',
+      id: 'fullshot@drclaw.dev',
       strict_min_version: '140.0',
       data_collection_permissions: {
         required: ['none'],
