@@ -19,6 +19,7 @@
  *   REPEAT             repetitions for the repeated-export scenarios (default: 10)
  *   ONLY               comma-separated scenario names to run (default: all)
  *   FIREFOX_OUT        output directory for logs/downloads/results (default: test/e2e/out/firefox)
+ *   EDITOR_BASELINE    output directory of an earlier run: editorTools must match its exports
  */
 import http from 'node:http';
 import net from 'node:net';
@@ -28,7 +29,7 @@ import {
 } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
-import { decodePng, checkLongPage, checkPdf, near, LONG_H } from './verify.mjs';
+import { decodePng, checkLongPage, checkPdf, near, LONG_H, changedPixels, redOverlap } from './verify.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '../..');
@@ -37,6 +38,18 @@ const EXT = resolve(ROOT, process.env.FULLSHOT_EXT_DIR ?? 'dist-firefox');
 const OUT = resolve(ROOT, process.env.FIREFOX_OUT ?? 'test/e2e/out/firefox');
 const REPEAT = Number(process.env.REPEAT ?? 10);
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(',')) : null;
+const EDITOR_BASELINE = process.env.EDITOR_BASELINE ? resolve(ROOT, process.env.EDITOR_BASELINE) : null;
+
+/**
+ * The editorTools exports of an earlier run, by file name. main() reads them before it clears OUT,
+ * because the earlier run may have written them to that same folder.
+ */
+let editorBaseline = null;
+function readEditorBaseline() {
+  if (!EDITOR_BASELINE) return null;
+  const files = existsSync(EDITOR_BASELINE) ? readdirSync(EDITOR_BASELINE).filter((f) => /^editor-.+\.png$/.test(f)) : [];
+  return new Map(files.map((f) => [f, readFileSync(join(EDITOR_BASELINE, f))]));
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const short = (s, n = 160) => (typeof s === 'string' && s.length > n ? `${s.slice(0, n)}…` : s);
@@ -70,6 +83,12 @@ const VARIANTS = {
     '<!doctype html><html><head><meta charset="utf-8"><title>short</title><style>' +
     'html,body{margin:0}body{background:#ecfccb}#box{height:300px;background:#65a30d}' +
     '</style></head><body><div id="box"></div></body></html>',
+  // One viewport of fine checkerboard, so every editor tool (pixelation too) changes pixels.
+  editor:
+    '<!doctype html><html><head><meta charset="utf-8"><title>editor</title><style>' +
+    'html,body{margin:0;height:100%}' +
+    'body{background:repeating-conic-gradient(#cbd5e1 0 25%,#f8fafc 0 50%) 0 0/16px 16px}' +
+    '</style></head><body></body></html>',
 };
 
 function startServer() {
@@ -415,7 +434,16 @@ function record(scenario, attempt, ok, detail) {
 
 /** "Capture full page" → wait for the editor → click the editor's own export button. */
 async function exportViaEditor(s, fmt) {
-  const before = listDownloads(s);
+  const ed = await openEditor(s);
+  if (ed.kind !== 'editor') return ed;
+  const out = await exportFromEditor(s, fmt);
+  // Leave the content context on the page tab for callers that inspect it.
+  await s.m.send('WebDriver:SwitchToWindow', { handle: ed.handles[0], focus: false });
+  return out;
+}
+
+/** "Capture full page" → wait until the editor tab has loaded the capture; switches to that tab. */
+async function openEditor(s) {
   const opened = await openPopup(s);
   if (!opened.buttons) return { kind: 'error', status: 'popup did not open' };
   await clickPopup(s, 'edit');
@@ -437,11 +465,57 @@ async function exportViaEditor(s, fmt) {
     await sleep(250);
     loaded = await s.m.exec(`return document.getElementById('loading')?.hidden === true;`).catch(() => false);
   }
-  await s.m.exec(`document.getElementById(arguments[0]).click();`, `export-${fmt === 'jpeg' ? 'jpg' : fmt}`);
-  const out = await waitOutcome(s, before, { ext: fmt === 'jpeg' ? '.jpg' : `.${fmt}` });
-  // Leave the content context on the page tab for callers that inspect it.
-  await s.m.send('WebDriver:SwitchToWindow', { handle: handles[0], focus: false });
-  return out;
+  if (!loaded) return { kind: 'timeout', status: 'editor did not load the capture' };
+  return { kind: 'editor', handles };
+}
+
+/** Click one of the editor's export buttons (the editor tab must be current) and wait for the file. */
+async function exportFromEditor(s, fmt) {
+  const before = listDownloads(s);
+  await s.m.content(`document.getElementById(arguments[0]).click();`, `export-${fmt === 'jpeg' ? 'jpg' : fmt}`);
+  return waitOutcome(s, before, { ext: fmt === 'jpeg' ? '.jpg' : `.${fmt}` });
+}
+
+/**
+ * Real input for the current tab through WebDriver actions: press the left button at the first
+ * point, move through the others (in small steps, like a hand would) and release. One point is a
+ * click. Points are viewport CSS px.
+ */
+async function pointerPath(s, points, steps = 6) {
+  const pts = points.map(([x, y]) => [Math.round(x), Math.round(y)]);
+  const acts = [
+    { type: 'pointerMove', origin: 'viewport', x: pts[0][0], y: pts[0][1], duration: 0 },
+    { type: 'pointerDown', button: 0 },
+  ];
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1];
+    const [bx, by] = pts[i];
+    for (let k = 1; k <= steps; k++) {
+      acts.push({ type: 'pointerMove', origin: 'viewport', duration: 10,
+        x: Math.round(ax + ((bx - ax) * k) / steps), y: Math.round(ay + ((by - ay) * k) / steps) });
+    }
+  }
+  acts.push({ type: 'pointerUp', button: 0 });
+  await s.m.context('content');
+  await s.m.send('WebDriver:PerformActions', { actions: [{ type: 'pointer', id: 'mouse', parameters: { pointerType: 'mouse' }, actions: acts }] });
+  await s.m.send('WebDriver:ReleaseActions', {});
+  await sleep(200);
+}
+
+const KEY = { ctrl: '', escape: '', delete: '' };
+
+/** Type keys into the focused element; an array entry is a chord (e.g. [KEY.ctrl, 'z']). */
+async function typeKeys(s, keys) {
+  const acts = [];
+  for (const k of keys) {
+    const chord = Array.isArray(k) ? k : [k];
+    for (const c of chord) acts.push({ type: 'keyDown', value: c });
+    for (const c of [...chord].reverse()) acts.push({ type: 'keyUp', value: c });
+  }
+  await s.m.context('content');
+  await s.m.send('WebDriver:PerformActions', { actions: [{ type: 'key', id: 'keyboard', actions: acts }] });
+  await s.m.send('WebDriver:ReleaseActions', {});
+  await sleep(200);
 }
 
 /** One Quick Export from the popup; returns a verdict for the long page. */
@@ -555,6 +629,163 @@ const SCENARIOS = {
             record(`Normal PDF`, i, ok, `pages=${pdf.pages} imgH=${pdf.totalH}`);
           }
           await backToPage(s);
+        }
+      }
+    } finally { await quit(s); }
+  },
+
+  // A PDF with the page address and date stamped on each page (an option, off by default). The
+  // stamp is the one PDF feature that goes through jsPDF's text().
+  async pdfStamp(base) {
+    const s = await launch();
+    try {
+      const optionsUrl = await s.m.chrome(`return WebExtensionPolicy.getByID(arguments[0]).getURL('src/options/index.html');`, s.id);
+      await gotoPage(s, optionsUrl);
+      await s.m.content(`const c = document.getElementById('stamp'); if (!c.checked) c.click();`);
+      await sleep(500);
+      await gotoPage(s, `${base}/long.html`);
+      const r = await quickExport(s, 'pdf');
+      let { ok, detail } = r;
+      if (r.out?.kind === 'download') {
+        const buf = readFileSync(r.out.path);
+        const { pages } = checkPdf(buf);
+        const stamps = buf.toString('latin1').split(`${new URL(base).host}/long.html`).length - 1;
+        ok = ok && pages > 0 && stamps === pages;
+        detail += ` | stamped pages ${stamps} of ${pages}`;
+      }
+      record('Quick PDF with the URL and date stamp', null, ok, detail);
+    } finally { await quit(s); }
+  },
+
+  // Every editor tool, driven with real pointer and key input. Each PNG export is checked against
+  // the one before it: a tool may change pixels only where it drew, Delete must bring back the
+  // page, Undo (which rebuilds the objects from saved JSON) must restore the image exactly and a
+  // crop must keep the selected area. With EDITOR_BASELINE set to the output folder of an earlier
+  // run, every export must also match that run pixel for pixel (proof that a library upgrade
+  // changes nothing the user sees).
+  async editorTools(base) {
+    const s = await launch();
+    try {
+      await gotoPage(s, `${base}/editor.html`);
+      const ed = await openEditor(s);
+      if (ed.kind !== 'editor') return record('Editor tools', null, false, `${ed.kind}: ${short(ed.status)}`);
+      const shots = {};
+      const shot = async (label) => {
+        const out = await exportFromEditor(s, 'png');
+        if (out.kind !== 'download') throw new Error(`${label} export: ${out.kind} ${short(out.status)}`);
+        const buf = readFileSync(out.path);
+        writeFileSync(join(OUT, `editor-${label}.png`), buf);
+        return (shots[label] = decodePng(buf));
+      };
+      const useTool = (tool) => s.m.content(`document.querySelector('.tool[data-tool="' + arguments[0] + '"]').click();`, tool);
+
+      const blank = await shot('blank');
+      // Where the canvas is, and which part of it can take input (the stage scrolls, the window ends).
+      const box = await s.m.content(`
+        const r = document.querySelector('.upper-canvas').getBoundingClientRect();
+        const st = document.getElementById('stage').getBoundingClientRect();
+        return { left: r.left, top: r.top, width: r.width,
+          x0: Math.max(r.left, st.left, 0), x1: Math.min(r.right, st.right, innerWidth),
+          y0: Math.max(r.top, st.top, 0), y1: Math.min(r.bottom, st.bottom, innerHeight) };
+      `);
+      const k = blank.width / box.width; // image px per CSS px
+      const toImg = ([x, y]) => [(x - box.left) * k, (y - box.top) * k];
+      // A 3 × 3 grid over the usable area; each tool draws in its own cell.
+      const cellW = (box.x1 - box.x0) / 3;
+      const cellH = (box.y1 - box.y0) / 3;
+      const at = (col, row, fx, fy) => [box.x0 + (col + fx) * cellW, box.y0 + (row + fy) * cellH];
+      const areas = {}; // image-px box each tool may change: [x0, y0, x1, y1]
+      const area = (name, pts, pad) => {
+        const img = pts.map(toImg);
+        const xs = img.map((p) => p[0]);
+        const ys = img.map((p) => p[1]);
+        areas[name] = [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
+      };
+      const inArea = ([x0, y0, x1, y1], x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+      const draw = async (tool, pts, pad) => {
+        await useTool(tool);
+        await pointerPath(s, pts);
+        area(tool, pts, pad);
+      };
+
+      await draw('rect', [at(0, 0, 0.2, 0.2), at(0, 0, 0.8, 0.8)], 4);
+      await draw('ellipse', [at(1, 0, 0.2, 0.2), at(1, 0, 0.8, 0.8)], 4);
+      await draw('arrow', [at(2, 0, 0.2, 0.8), at(2, 0, 0.8, 0.2)], 18); // the head reaches past the end point
+      await draw('redact', [at(0, 1, 0.15, 0.15), at(0, 1, 0.85, 0.85)], 2);
+      const textAt = at(1, 1, 0.1, 0.3);
+      await useTool('text');
+      await pointerPath(s, [textAt]);
+      await typeKeys(s, [...'FullShot', KEY.escape]);
+      const [tx, ty] = toImg(textAt);
+      areas.text = [tx - 3, ty - 3, tx + 230, ty + 34]; // 20 px text in a 220 px wide box
+      await draw('pen', [at(2, 1, 0.1, 0.5), at(2, 1, 0.3, 0.2), at(2, 1, 0.5, 0.8), at(2, 1, 0.7, 0.2), at(2, 1, 0.9, 0.5)], 5);
+      await draw('highlight', [at(0, 2, 0.1, 0.5), at(0, 2, 0.5, 0.45), at(0, 2, 0.9, 0.5)], 11);
+      const all = await shot('all');
+
+      const hits = Object.fromEntries(Object.keys(areas).map((n) => [n, 0]));
+      const stray = [];
+      for (const [x, y] of changedPixels(all, blank)) {
+        const name = Object.keys(areas).find((n) => inArea(areas[n], x, y));
+        if (name) hits[name]++;
+        else stray.push([x, y]);
+      }
+      record('Editor: each tool draws only where it was used', null,
+        stray.length === 0 && Object.values(hits).every((n) => n >= 20),
+        `changed px per tool ${JSON.stringify(hits)} | outside the tools' areas: ${stray.length}${stray.length ? ` e.g. ${JSON.stringify(stray.slice(0, 3))}` : ''}`);
+
+      await useTool('select');
+      await pointerPath(s, [at(0, 0, 0.5, 0.5)]); // inside the box: selects it
+      await typeKeys(s, [KEY.delete]);
+      const deleted = await shot('deleted');
+      let wrong = 0;
+      for (let y = 0; y < all.height; y++) {
+        for (let x = 0; x < all.width; x++) {
+          const ref = inArea(areas.rect, x, y) ? blank : all;
+          const p = deleted.at(x, y);
+          const q = ref.at(x, y);
+          if (p[0] !== q[0] || p[1] !== q[1] || p[2] !== q[2] || p[3] !== q[3]) wrong++;
+        }
+      }
+      record('Editor: select + Delete removes only the box', null, wrong === 0, `pixels not as expected: ${wrong}`);
+
+      await typeKeys(s, [[KEY.ctrl, 'z']]);
+      const undone = await shot('undone');
+      const undoDiff = changedPixels(undone, all).length;
+      record('Editor: Undo restores the image exactly', null, undoDiff === 0, `pixels different from before Delete: ${undoDiff}`);
+
+      const c0 = at(0, 0, 0.1, 0.1);
+      const c1 = at(1, 1, 0.9, 0.9);
+      await useTool('crop');
+      await pointerPath(s, [c0, c1]);
+      const cropped = await shot('cropped');
+      const [cx0, cy0] = toImg(c0);
+      const [cx1, cy1] = toImg(c1);
+      // The crop starts at a fractional pixel, so the export is resampled: compare where the red
+      // annotations are rather than exact pixels (a crop 3 px or more off overlaps well under 0.8).
+      let best = { iou: -1 };
+      for (let oy = -2; oy <= 2; oy++) {
+        for (let ox = -2; ox <= 2; ox++) {
+          const r = redOverlap(cropped, undone, Math.round(cx0) + ox, Math.round(cy0) + oy);
+          if (r.iou > best.iou) best = { ...r, ox, oy };
+        }
+      }
+      const sizeOk = Math.abs(cropped.width - (cx1 - cx0)) <= 2 && Math.abs(cropped.height - (cy1 - cy0)) <= 2;
+      record('Editor: crop exports the selected area', null, sizeOk && best.red >= 500 && best.iou >= 0.8,
+        `${cropped.width}x${cropped.height} expected ${Math.round(cx1 - cx0)}x${Math.round(cy1 - cy0)} | red overlap ${best.iou.toFixed(2)} at offset ${best.ox},${best.oy} (${best.red} red px)`);
+
+      if (editorBaseline) {
+        for (const label of Object.keys(shots)) {
+          const buf = editorBaseline.get(`editor-${label}.png`);
+          if (!buf) {
+            record(`Editor: same pixels as baseline (${label})`, null, false, `missing editor-${label}.png in ${EDITOR_BASELINE}`);
+            continue;
+          }
+          const ref = decodePng(buf);
+          const cur = shots[label];
+          const same = ref.width === cur.width && ref.height === cur.height;
+          const diff = same ? changedPixels(cur, ref).length : -1;
+          record(`Editor: same pixels as baseline (${label})`, null, same && diff === 0,
+            same ? `different pixels: ${diff}` : `size ${cur.width}x${cur.height} vs baseline ${ref.width}x${ref.height}`);
         }
       }
     } finally { await quit(s); }
@@ -907,6 +1138,7 @@ async function main() {
     console.error(`Missing ${EXT}/manifest.json. Build it first: npm run build:firefox`);
     process.exit(2);
   }
+  editorBaseline = readEditorBaseline();
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
 

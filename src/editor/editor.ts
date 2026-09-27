@@ -14,6 +14,12 @@ import { buildFilename } from '@/lib/filename';
 /** Build-time flag (see vite.config.ts); only the E2E build sets it, production strips the branch. */
 declare const __FULLSHOT_TEST__: boolean;
 
+// fabric 7 places objects by their center unless told otherwise. This editor (its drawing code,
+// crop and redaction, and the JSON in its undo history) places them by their top-left corner, as
+// fabric 6 did.
+fabric.FabricObject.ownDefaults.originX = 'left';
+fabric.FabricObject.ownDefaults.originY = 'top';
+
 type Tool = 'select' | 'crop' | 'redact' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'pen' | 'highlight';
 
 interface Rect { x: number; y: number; w: number; h: number }
@@ -35,6 +41,11 @@ const canvas = new fabric.Canvas(canvasEl, {
   preserveObjectStacking: true,
   backgroundColor: '#ffffff',
   selection: true,
+  // fabric 7 turned these on. Keep right and middle clicks from starting a tool action, and keep
+  // the browser's context menu, as with fabric 6.
+  fireRightClick: false,
+  fireMiddleClick: false,
+  stopContextMenu: false,
 });
 
 let natW = 0;

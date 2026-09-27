@@ -113,3 +113,37 @@ export function checkPdf(buf) {
   const totalH = imgs.reduce((s, [, h]) => s + h, 0);
   return { pages, width: imgs[0]?.[0], totalH, problems: [] };
 }
+
+const samePx = (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
+
+/** Pixels [x, y] where two decoded PNGs of the same size differ in any channel. */
+export function changedPixels(a, b) {
+  const out = [];
+  for (let y = 0; y < a.height; y++) {
+    for (let x = 0; x < a.width; x++) if (!samePx(a.at(x, y), b.at(x, y))) out.push([x, y]);
+  }
+  return out;
+}
+
+/**
+ * How well the red annotations in `part` line up with those in the same-sized area of `whole` at
+ * (ox, oy): intersection over union of their red pixels (the editor's default colour is red).
+ */
+export function redOverlap(part, whole, ox, oy) {
+  const red = (p) => p[0] - Math.max(p[1], p[2]) > 40;
+  let both = 0;
+  let either = 0;
+  let inPart = 0;
+  for (let y = 0; y < part.height; y++) {
+    for (let x = 0; x < part.width; x++) {
+      const a = red(part.at(x, y));
+      const wx = ox + x;
+      const wy = oy + y;
+      const b = wx >= 0 && wy >= 0 && wx < whole.width && wy < whole.height && red(whole.at(wx, wy));
+      if (a) inPart++;
+      if (a && b) both++;
+      if (a || b) either++;
+    }
+  }
+  return { iou: either ? both / either : 0, red: inPart };
+}

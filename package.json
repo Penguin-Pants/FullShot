@@ -1,6 +1,6 @@
 {
   "name": "fullshot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "FullShot — full page screenshot capture with an annotation editor and local PDF/PNG export.",
   "type": "module",
   "private": true,
@@ -24,14 +24,14 @@
     "@crxjs/vite-plugin": "^2.0.0-beta.28",
     "@types/chrome": "^0.0.270",
     "@types/node": "^20.19.43",
-    "esbuild": "^0.21.5",
+    "esbuild": "^0.28.2",
     "playwright-core": "^1.61.1",
     "typescript": "^5.5.4",
-    "vite": "^5.4.0",
-    "web-ext": "^10.5.0"
+    "vite": "^7.3.6",
+    "web-ext": "^10.7.0"
   },
   "dependencies": {
-    "fabric": "^6.4.3",
-    "jspdf": "^2.5.1"
+    "fabric": "^7.4.0",
+    "jspdf": "^4.2.1"
   }
 }

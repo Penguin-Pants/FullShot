@@ -84,7 +84,7 @@ For each new version, increase `version` in `package.json` (e.g. `npm version pa
 ### Build instructions for AMO reviewers
 
 - Operating system: Ubuntu 24.04 (Linux), the tested environment.
-- Tools: Node.js 22 (tested with 22.22.2) and npm 10 (tested with 10.9.7). Install both from
+- Tools: Node.js 22.12 or newer (tested with 22.22.2) and npm 10 (tested with 10.9.7). Install both from
   <https://nodejs.org>.
 - Commands, run in the folder that contains `package.json`:
 
@@ -122,7 +122,7 @@ For each new version, increase `version` in `package.json` (e.g. `npm version pa
 | Tile stitching | `src/lib/stitch.ts` (OffscreenCanvas, DPR-aware, canvas-size guard) |
 | Capture hand-off to editor | `src/lib/db.ts` (IndexedDB, holds multi-MB blobs) |
 | Popup / options UI | `src/popup/*`, `src/options/*` |
-| Annotation editor | `src/editor/*` (fabric.js v6) |
+| Annotation editor | `src/editor/*` (fabric.js v7, with v6's top-left object origin) |
 | Exports | `src/lib/exportPdf.ts` (jsPDF, smart split; used by Quick PDF and the editor), `src/lib/exportImage.ts` (editor PNG/JPEG), `src/lib/download.ts` (object URL, or data: URL in Chrome's service worker) |
 
 **Why Firefox needs a second build pipeline, not just a second manifest:** Firefox's MV3
@@ -170,11 +170,14 @@ dependencies. It tests the **production** build: no test hooks, no host permissi
 button and the popup buttons are clicked with OS-level mouse events, so Firefox grants `activeTab`
 exactly as it does for a person. It repeats every export several times and covers short, already
 scrolled, quirks-mode, smooth-scrolling, zoomed, high-DPI and `resistFingerprinting` pages, reloads,
-navigation, tab switches, overlapping requests, and restricted pages:
+navigation, tab switches, overlapping requests, and restricted pages. It also uses every editor
+tool with real pointer and key input and checks the exported pixels (each tool draws only where it
+was used; Delete, Undo and crop work), and it checks a PDF with the address and date stamp:
 
 ```bash
 FIREFOX_BIN=/path/to/firefox npm run test:e2e:firefox
-# options: REPEAT=10 (repetitions), ONLY=quickPngRepeated,lifecycle (scenarios)
+# options: REPEAT=10 (repetitions), ONLY=quickPngRepeated,lifecycle (scenarios),
+#          EDITOR_BASELINE=<output folder of an earlier run> (editor exports must match it exactly)
 ```
 
 It needs a display for the OS-level events (`xvfb-run` is used by the npm script). Results are
