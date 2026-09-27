@@ -81,6 +81,9 @@ For each new version, increase `version` in `package.json` (e.g. `npm version pa
 --no-git-tag-version`). Keep the add-on ID (`browser_specific_settings.gecko.id` in
 `src/manifest.firefox.ts`) unchanged: AMO identifies FullShot by it.
 
+Paste-ready answers for the AMO form (summary, description, categories, license, notes for
+reviewers) are in [`docs/amo-listing.md`](docs/amo-listing.md).
+
 ### Build instructions for AMO reviewers
 
 - Operating system: Ubuntu 24.04 (Linux), the tested environment.
