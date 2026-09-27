@@ -22,11 +22,12 @@ export default defineConfig({
         editor: resolve(__dirname, 'src/editor/index.html'),
       },
       // jsPDF dynamically imports html2canvas/dompurify (optionalDependencies) purely to power its
-      // .html() rendering method, which this extension never calls (exportPdf.ts only ever uses
-      // pdf.output('blob') on a canvas we already built). Externalizing them drops ~220KB of unused
-      // code from the bundle and avoids shipping innerHTML-sanitization warnings for code paths
-      // that are unreachable here.
-      external: ['html2canvas', 'dompurify'],
+      // .html() rendering method, and canvg for its SVG images; this extension uses neither
+      // (exportPdf.ts only adds its own JPEG and text, then calls pdf.output('blob')).
+      // Externalizing them drops unused code from the bundle and avoids shipping
+      // innerHTML-sanitization and Function-constructor warnings for code paths that are
+      // unreachable here.
+      external: ['html2canvas', 'dompurify', 'canvg'],
     },
   },
   plugins: [crx({ manifest })],
