@@ -38,6 +38,18 @@ const EXT = resolve(ROOT, process.env.FULLSHOT_EXT_DIR ?? 'dist-firefox');
 const OUT = resolve(ROOT, process.env.FIREFOX_OUT ?? 'test/e2e/out/firefox');
 const REPEAT = Number(process.env.REPEAT ?? 10);
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(',')) : null;
+const EDITOR_BASELINE = process.env.EDITOR_BASELINE ? resolve(ROOT, process.env.EDITOR_BASELINE) : null;
+
+/**
+ * The editorTools exports of an earlier run, by file name. main() reads them before it clears OUT,
+ * because the earlier run may have written them to that same folder.
+ */
+let editorBaseline = null;
+function readEditorBaseline() {
+  if (!EDITOR_BASELINE) return null;
+  const files = existsSync(EDITOR_BASELINE) ? readdirSync(EDITOR_BASELINE).filter((f) => /^editor-.+\.png$/.test(f)) : [];
+  return new Map(files.map((f) => [f, readFileSync(join(EDITOR_BASELINE, f))]));
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const short = (s, n = 160) => (typeof s === 'string' && s.length > n ? `${s.slice(0, n)}…` : s);
@@ -761,14 +773,14 @@ const SCENARIOS = {
       record('Editor: crop exports the selected area', null, sizeOk && best.red >= 500 && best.iou >= 0.8,
         `${cropped.width}x${cropped.height} expected ${Math.round(cx1 - cx0)}x${Math.round(cy1 - cy0)} | red overlap ${best.iou.toFixed(2)} at offset ${best.ox},${best.oy} (${best.red} red px)`);
 
-      if (process.env.EDITOR_BASELINE) {
+      if (editorBaseline) {
         for (const label of Object.keys(shots)) {
-          const file = join(resolve(process.env.EDITOR_BASELINE), `editor-${label}.png`);
-          if (!existsSync(file)) {
-            record(`Editor: same pixels as baseline (${label})`, null, false, `missing ${file}`);
+          const buf = editorBaseline.get(`editor-${label}.png`);
+          if (!buf) {
+            record(`Editor: same pixels as baseline (${label})`, null, false, `missing editor-${label}.png in ${EDITOR_BASELINE}`);
             continue;
           }
-          const ref = decodePng(readFileSync(file));
+          const ref = decodePng(buf);
           const cur = shots[label];
           const same = ref.width === cur.width && ref.height === cur.height;
           const diff = same ? changedPixels(cur, ref).length : -1;
@@ -1126,6 +1138,7 @@ async function main() {
     console.error(`Missing ${EXT}/manifest.json. Build it first: npm run build:firefox`);
     process.exit(2);
   }
+  editorBaseline = readEditorBaseline();
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
 
