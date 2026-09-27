@@ -64,15 +64,18 @@ Commit your changes, then run:
 npm run package:firefox
 ```
 
-It builds `dist-firefox/` and writes two files to `web-ext-artifacts/`:
+It copies the files of the last commit to a temporary folder and builds the add-on there with the
+same commands AMO reviewers use (`npm ci`, then `npm run build:firefox`). Then it writes two files
+to `web-ext-artifacts/`:
 
 - `fullshot-<version>.zip`: the add-on. Upload it on addons.mozilla.org.
 - `fullshot-<version>-source.zip`: the source code of the last commit. Upload it when AMO asks for
   the source code. AMO requires it because the build bundles and minifies the code.
 
-The script stops if the working tree has uncommitted changes or untracked files, because the two
-zips must match. It always makes a production build, even when `FULLSHOT_TEST` or
-`FIREFOX_OUT_DIR` is set in your shell.
+Because the build uses only committed files, the add-on always matches the source zip. The script
+stops if the working tree has uncommitted changes or untracked files, so that nothing you expect
+is left out. It always makes a production build, even when `FULLSHOT_TEST` or `FIREFOX_OUT_DIR`
+is set in your shell.
 
 For each new version, increase `version` in `package.json` (e.g. `npm version patch
 --no-git-tag-version`). Keep the add-on ID (`browser_specific_settings.gecko.id` in

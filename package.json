@@ -18,7 +18,7 @@
     "build:firefox:only": "node scripts/build-firefox.mjs",
     "build:firefox:test": "FULLSHOT_TEST=1 FIREFOX_OUT_DIR=dist-firefox-test node scripts/build-firefox.mjs",
     "lint:firefox": "web-ext lint -s dist-firefox --self-hosted",
-    "package:firefox": "tsc --noEmit && node scripts/package-firefox.mjs"
+    "package:firefox": "node scripts/package-firefox.mjs"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0-beta.28",
