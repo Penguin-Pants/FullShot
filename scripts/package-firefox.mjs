@@ -40,11 +40,12 @@ try {
   rmSync(join(work, 'source.tar'));
 
   // The reviewers' commands, without the two variables that make build-firefox.mjs write a test
-  // build (FULLSHOT_TEST) or write it elsewhere (FIREFOX_OUT_DIR).
+  // build (FULLSHOT_TEST) or write it elsewhere (FIREFOX_OUT_DIR). `--include=dev` keeps the build
+  // tools when NODE_ENV=production or npm's `omit` setting would leave devDependencies out.
   const env = { ...process.env };
   delete env.FULLSHOT_TEST;
   delete env.FIREFOX_OUT_DIR;
-  execSync('npm ci --no-audit --no-fund', { cwd: work, env, stdio: 'inherit' });
+  execSync('npm ci --include=dev --no-audit --no-fund', { cwd: work, env, stdio: 'inherit' });
   execSync('npm run build:firefox', { cwd: work, env, stdio: 'inherit' });
 
   // Production relies on activeTab alone; host permissions would mean a test build.
