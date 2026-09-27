@@ -190,13 +190,14 @@ npm run build:firefox   # typecheck + build
 npm run lint:firefox    # Mozilla's own manifest/source validator (web-ext lint) — must be 0 errors
 ```
 
-`lint:firefox` reports 0 errors and a handful of warnings, all traced to vendored libraries
-(fabric.js, jsPDF) rather than this project's own code — expected for any extension bundling
-those. `html2canvas` and `dompurify` (jsPDF's optional `.html()`-plugin dependencies, never invoked
-since FullShot only calls `pdf.output('blob')`) are excluded from the page bundles via
-`build.rollupOptions.external` in `vite.config.ts`/`vite.config.firefox.ts`, and from the Firefox
-background bundle (with `canvg`) in `scripts/build-firefox.mjs`. This shrinks the build by ~220KB
-and removes the warnings those libraries triggered.
+`lint:firefox` reports 0 errors and 2 warnings. Both are in jsPDF's main file, which sets
+`innerHTML` only through `DOMPurify.sanitize` in its `.html()` plugin; FullShot never calls it.
+The project's own code uses no `innerHTML`, `document.write` or `eval`. jsPDF's optional
+dependencies (`html2canvas` and `dompurify` for `.html()`, `canvg` for SVG images) are never
+invoked, since FullShot only adds its own JPEG and text and calls `pdf.output('blob')`. They are
+excluded from the page bundles via `build.rollupOptions.external` in `vite.config.ts` and
+`vite.config.firefox.ts`, and from the Firefox background bundle in `scripts/build-firefox.mjs`.
+This keeps about 380KB of unused code, and the warnings it triggered, out of the build.
 
 ## License
 
