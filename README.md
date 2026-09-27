@@ -70,7 +70,9 @@ It builds `dist-firefox/` and writes two files to `web-ext-artifacts/`:
 - `fullshot-<version>-source.zip`: the source code of the last commit. Upload it when AMO asks for
   the source code. AMO requires it because the build bundles and minifies the code.
 
-The script stops if tracked files have uncommitted changes, because the two zips must match.
+The script stops if the working tree has uncommitted changes or untracked files, because the two
+zips must match. It always makes a production build, even when `FULLSHOT_TEST` or
+`FIREFOX_OUT_DIR` is set in your shell.
 
 For each new version, increase `version` in `package.json` (e.g. `npm version patch
 --no-git-tag-version`). Keep the add-on ID (`browser_specific_settings.gecko.id` in
