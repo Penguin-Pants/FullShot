@@ -1,7 +1,7 @@
 /**
  * Composite the captured viewport tiles into one full-page image using OffscreenCanvas.
- * Runs in the service worker. captureVisibleTab returns physical pixels (already scaled by
- * devicePixelRatio), so all math here is in physical pixels.
+ * Runs in the background (Chrome service worker / Firefox event page). All math is in the
+ * physical pixels that captureVisibleTab returns.
  */
 import type { CaptureTile, PageMetrics } from './types';
 
@@ -13,16 +13,33 @@ import type { CaptureTile, PageMetrics } from './types';
 export const SAFE_MAX_CANVAS_DIM = 32767;
 
 export interface StitchResult {
-  blob: Blob;
+  canvas: OffscreenCanvas;
   width: number;
   height: number;
   /** Uniform scale applied (1 unless the page was too large for the canvas). */
   scale: number;
+  /** Pixels per CSS px of the captured tiles. */
+  pixelScale: number;
 }
 
 export interface StitchOptions {
-  type?: 'image/png' | 'image/jpeg';
-  quality?: number;
+  /** Fill colour behind the tiles (JPEG and PDF have no alpha channel). */
+  background?: string;
+}
+
+/**
+ * Pixels per CSS px of the captured tiles.
+ *
+ * captureVisibleTab captures at the browser's real device scale, but window.devicePixelRatio is
+ * whatever the page is told (Firefox's resistFingerprinting reports a spoofed value). So measure
+ * the scale from the first tile, and keep the reported value only when it agrees (it is exact,
+ * while the measured one carries innerWidth's rounding at fractional zoom levels).
+ */
+export function tilePixelScale(tileWidthPx: number, metrics: PageMetrics): number {
+  const reported = metrics.devicePixelRatio || 1;
+  if (!metrics.innerWidth || !tileWidthPx) return reported;
+  const measured = tileWidthPx / metrics.innerWidth;
+  return Math.abs(measured - reported) / measured < 0.02 ? reported : measured;
 }
 
 /**
@@ -35,7 +52,9 @@ export async function stitchTiles(
   metrics: PageMetrics,
   opts: StitchOptions = {},
 ): Promise<StitchResult> {
-  const dpr = metrics.devicePixelRatio || 1;
+  if (!tiles.length) throw new Error('No tiles were captured.');
+  const first = await bitmapFromDataUrl(tiles[0].dataUrl);
+  const dpr = tilePixelScale(first.width, metrics);
   const fullW = Math.round(metrics.fullWidth * dpr);
   const fullH = Math.round(metrics.fullHeight * dpr);
 
@@ -48,28 +67,22 @@ export async function stitchTiles(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not get a 2D context for stitching.');
 
-  // JPEG has no alpha; paint white so transparent page regions do not turn black.
-  if (opts.type === 'image/jpeg') {
-    ctx.fillStyle = '#ffffff';
+  if (opts.background) {
+    ctx.fillStyle = opts.background;
     ctx.fillRect(0, 0, canvasW, canvasH);
   }
 
-  for (const tile of tiles) {
-    const bmp = await bitmapFromDataUrl(tile.dataUrl);
-    const dx = Math.round(tile.x * dpr * scale);
-    const dy = Math.round(tile.y * dpr * scale);
+  for (let i = 0; i < tiles.length; i++) {
+    const bmp = i === 0 ? first : await bitmapFromDataUrl(tiles[i].dataUrl);
+    const dx = Math.round(tiles[i].x * dpr * scale);
+    const dy = Math.round(tiles[i].y * dpr * scale);
     const dw = Math.round(bmp.width * scale);
     const dh = Math.round(bmp.height * scale);
     ctx.drawImage(bmp, 0, 0, bmp.width, bmp.height, dx, dy, dw, dh);
     bmp.close();
   }
 
-  const blob = await canvas.convertToBlob({
-    type: opts.type ?? 'image/png',
-    quality: opts.quality,
-  });
-
-  return { blob, width: canvasW, height: canvasH, scale };
+  return { canvas, width: canvasW, height: canvasH, scale, pixelScale: dpr };
 }
 
 async function bitmapFromDataUrl(dataUrl: string): Promise<ImageBitmap> {

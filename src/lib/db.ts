@@ -1,13 +1,17 @@
 /**
- * Tiny IndexedDB store for handing large capture blobs from the service worker to the
- * editor / offscreen contexts. IndexedDB (with the `unlimitedStorage` permission) comfortably
- * holds multi-megabyte full-page screenshots, unlike chrome.storage.session's small quota.
+ * Tiny IndexedDB store for handing large capture blobs from the background to the editor tab.
+ * IndexedDB (with the `unlimitedStorage` permission) comfortably holds multi-megabyte full-page
+ * screenshots, unlike chrome.storage.session's small quota.
+ *
+ * Only captures opened in the editor are stored, and only the most recent few are kept (the
+ * editor needs its entry again only if its tab is reloaded).
  */
-import type { CaptureResult } from './types';
-
 const DB_NAME = 'fullshot';
 const STORE = 'captures';
 const DB_VERSION = 1;
+
+/** How many captures to keep for the editor; older ones are deleted when a new one is stored. */
+export const MAX_STORED_CAPTURES = 10;
 
 export interface StoredCapture {
   id: string;
@@ -33,12 +37,21 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
+/** Store a capture, then delete all but the newest MAX_STORED_CAPTURES. */
 export async function putCapture(entry: StoredCapture): Promise<void> {
   const db = await openDb();
   try {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(entry);
+      const store = tx.objectStore(STORE);
+      store.put(entry);
+      const all = store.getAll();
+      all.onsuccess = () => {
+        const stale = (all.result as StoredCapture[])
+          .sort((a, b) => b.capturedAt - a.capturedAt)
+          .slice(MAX_STORED_CAPTURES);
+        for (const old of stale) store.delete(old.id);
+      };
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
@@ -60,29 +73,4 @@ export async function getCapture(id: string): Promise<StoredCapture | undefined>
   } finally {
     db.close();
   }
-}
-
-export async function deleteCapture(id: string): Promise<void> {
-  const db = await openDb();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).delete(id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } finally {
-    db.close();
-  }
-}
-
-/** Convenience: shape a StoredCapture's metadata as a CaptureResult (sans blob). */
-export function toCaptureMeta(entry: StoredCapture): Omit<CaptureResult, 'dataUrl'> {
-  return {
-    width: entry.width,
-    height: entry.height,
-    pageUrl: entry.pageUrl,
-    pageTitle: entry.pageTitle,
-    capturedAt: entry.capturedAt,
-  };
 }

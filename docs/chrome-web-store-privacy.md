@@ -27,14 +27,15 @@ user's device** and makes **no network requests** of any kind.
 > is not registered as a persistent content script.
 
 **storage**
-> Used to save the user's own preferences (default export format, image quality, and whether to
-> open the editor after a capture) with chrome.storage. No browsing data is stored.
+> Used to save the user's own preferences (image quality, and whether to stamp the page address on
+> PDF exports) with chrome.storage. No browsing data is stored.
 
 **unlimitedStorage**
-> A full-page screenshot can be several megabytes. The captured image is held briefly in the
+> A full-page screenshot can be several megabytes. A capture opened in the editor is held in the
 > browser's local IndexedDB to pass it from the background service worker to the editor tab.
-> unlimitedStorage keeps large captures from hitting the default storage quota. The image stays on
-> the user's device and is deleted after use; it is never uploaded.
+> unlimitedStorage keeps large captures from hitting the default storage quota. Only the 10 most
+> recent editor captures are kept (older ones are deleted automatically); quick exports are not
+> stored. The image stays on the user's device; it is never uploaded.
 
 **downloads**
 > Used with chrome.downloads to save the finished screenshot or PDF to the user's Downloads folder

@@ -13,6 +13,7 @@ import http from 'node:http';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
+import { decodePng, checkLongPage, checkPdf, LONG_H } from './verify.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '../..');
@@ -185,6 +186,53 @@ try {
   const pdf = dls.find((d) => d.filename.endsWith('.pdf'));
   check('PNG export has PNG signature', png && png.head[0] === 137 && png.head[1] === 80 && png.head[2] === 78 && png.head[3] === 71, JSON.stringify(png?.head));
   check('PDF export has %PDF signature', pdf && pdf.head[0] === 37 && pdf.head[1] === 80 && pdf.head[2] === 68 && pdf.head[3] === 70, `size=${pdf?.size}`);
+
+  // --- Quick export: the same capture, encoded and saved by the service worker ---
+  // Chrome's service worker has no URL.createObjectURL, so these downloads use data: URLs; spy on
+  // chrome.downloads.download there and keep the bytes for checking.
+  await sw.evaluate(() => {
+    self.__dl = [];
+    chrome.downloads.download = async (opts) => {
+      const buf = new Uint8Array(await (await fetch(opts.url)).arrayBuffer());
+      let bin = '';
+      for (let k = 0; k < buf.length; k += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(k, k + 0x8000));
+      self.__dl.push({ filename: opts.filename, scheme: opts.url.slice(0, opts.url.indexOf(':')), b64: btoa(bin) });
+      return 1;
+    };
+  });
+  await page.bringToFront();
+  await sleep(300);
+  const cssWidth = await page.evaluate(() => Math.max(window.innerWidth, document.documentElement.scrollWidth));
+  for (const mode of ['png', 'jpeg', 'pdf']) {
+    const err = await sw.evaluate((m) => self.__fullshotTest(m).then(() => null, (e) => String(e && e.message)), mode);
+    check(`Quick ${mode.toUpperCase()} completes`, err === null, err ?? '');
+  }
+  const quick = await sw.evaluate(() => self.__dl.map((d) => ({ filename: d.filename, scheme: d.scheme, b64: d.b64 })));
+  const qPng = quick.find((d) => d.filename.endsWith('.png'));
+  const qJpg = quick.find((d) => d.filename.endsWith('.jpg'));
+  const qPdf = quick.find((d) => d.filename.endsWith('.pdf'));
+  if (qPng) {
+    const buf = Buffer.from(qPng.b64, 'base64');
+    writeFileSync(join(OUT, 'quick.png'), buf);
+    const problems = checkLongPage(decodePng(buf), 1, cssWidth);
+    check('Quick PNG is the complete page', !problems.length, problems.join('; ') || `${cssWidth}x${LONG_H}`);
+  } else check('Quick PNG is the complete page', false, 'no PNG download');
+  check('Quick JPEG has JPEG signature', qJpg && qJpg.b64.startsWith('/9j/'), qJpg?.filename ?? 'no JPEG download');
+  if (qPdf) {
+    const info = checkPdf(Buffer.from(qPdf.b64, 'base64'));
+    check('Quick PDF holds the complete page', info.pages > 1 && Math.abs(info.totalH - LONG_H) <= 2, `pages=${info.pages} imgH=${info.totalH}`);
+  } else check('Quick PDF holds the complete page', false, 'no PDF download');
+
+  // --- one capture at a time: a second request while one runs is refused, not interleaved ---
+  const second = await sw.evaluate(async () => {
+    const first = self.__fullshotTest('png');
+    const other = await self.__fullshotTest('png').then(() => 'started', (e) => String(e && e.message));
+    await first;
+    return other;
+  });
+  check('Concurrent capture request is refused', /already running/i.test(second), second);
+  const pageAfter = await page.evaluate(() => ({ y: window.scrollY, header: getComputedStyle(document.getElementById('fixed-header')).visibility }));
+  check('Page restored after capture', pageAfter.y === 0 && pageAfter.header === 'visible', JSON.stringify(pageAfter));
 
   exitCode = results.every((r) => r.ok) ? 0 : 1;
 } catch (err) {

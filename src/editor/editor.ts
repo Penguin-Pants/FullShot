@@ -7,7 +7,9 @@ import * as fabric from 'fabric';
 import { getCapture } from '@/lib/db';
 import { loadOptions } from '@/lib/options';
 import { downloadCanvas, copyCanvas } from '@/lib/exportImage';
-import { exportCanvasToPdf } from '@/lib/exportPdf';
+import { buildPdf } from '@/lib/exportPdf';
+import { downloadBlob } from '@/lib/download';
+import { buildFilename } from '@/lib/filename';
 
 /** Build-time flag (see vite.config.ts); only the E2E build sets it, production strips the branch. */
 declare const __FULLSHOT_TEST__: boolean;
@@ -18,7 +20,6 @@ interface Rect { x: number; y: number; w: number; h: number }
 
 const params = new URLSearchParams(location.search);
 const captureId = params.get('id') ?? '';
-const autoAction = params.get('auto');
 
 const canvasEl = document.getElementById('c') as HTMLCanvasElement;
 const stage = document.getElementById('stage') as HTMLDivElement;
@@ -375,25 +376,31 @@ function flatten(): HTMLCanvasElement {
   return out;
 }
 
-async function doPng(): Promise<void> {
-  await downloadCanvas(flatten(), 'png', quality, meta.pageUrl);
-  toast('Saved PNG');
+/** Run an export and report the outcome; failures are shown, never swallowed. */
+async function runExport(label: string, fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+    toast(`Saved ${label}`);
+  } catch (err) {
+    console.error(`[FullShot] ${label} export failed`, err);
+    toast(`${label} export failed: ${err instanceof Error ? err.message : String(err)}`, true);
+  }
 }
-async function doJpg(): Promise<void> {
-  await downloadCanvas(flatten(), 'jpeg', quality, meta.pageUrl);
-  toast('Saved JPEG');
-}
-async function doPdf(): Promise<void> {
-  toast('Building PDF…');
-  const opts = await loadOptions();
-  await exportCanvasToPdf(flatten(), {
-    pageUrl: meta.pageUrl,
-    capturedAt: meta.capturedAt,
-    quality,
-    stamp: opts.stampUrlAndDate,
+
+const doPng = () => runExport('PNG', () => downloadCanvas(flatten(), 'png', quality, meta.pageUrl));
+const doJpg = () => runExport('JPEG', () => downloadCanvas(flatten(), 'jpeg', quality, meta.pageUrl));
+const doPdf = () =>
+  runExport('PDF', async () => {
+    toast('Building PDF…');
+    const opts = await loadOptions();
+    const blob = await buildPdf(flatten(), {
+      pageUrl: meta.pageUrl,
+      capturedAt: meta.capturedAt,
+      quality,
+      stamp: opts.stampUrlAndDate,
+    });
+    await downloadBlob(blob, buildFilename(meta.pageUrl, meta.capturedAt, 'pdf'));
   });
-  toast('Saved PDF');
-}
 async function doCopy(): Promise<void> {
   try {
     await copyCanvas(flatten());
@@ -529,8 +536,6 @@ async function boot(): Promise<void> {
   historyIdx = -1;
   pushHistory(); // baseline empty state
   setTool('select');
-
-  if (autoAction === 'pdf') void doPdf();
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -554,4 +559,7 @@ if (__FULLSHOT_TEST__) {
   };
 }
 
-void boot();
+boot().catch((err) => {
+  console.error('[FullShot] could not load the capture', err);
+  loadingEl.textContent = `Could not load the capture: ${err instanceof Error ? err.message : String(err)}`;
+});
