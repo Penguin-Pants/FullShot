@@ -1,6 +1,6 @@
 {
   "name": "fullshot",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "FullShot — full page screenshot capture with an annotation editor and local PDF/PNG export.",
   "type": "module",
   "private": true,
@@ -17,7 +17,8 @@
     "build:firefox": "tsc --noEmit && node scripts/build-firefox.mjs",
     "build:firefox:only": "node scripts/build-firefox.mjs",
     "build:firefox:test": "FULLSHOT_TEST=1 FIREFOX_OUT_DIR=dist-firefox-test node scripts/build-firefox.mjs",
-    "lint:firefox": "web-ext lint -s dist-firefox --self-hosted"
+    "lint:firefox": "web-ext lint -s dist-firefox --self-hosted",
+    "package:firefox": "node scripts/package-firefox.mjs"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0-beta.28",
