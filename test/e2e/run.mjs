@@ -10,10 +10,10 @@
  */
 import { chromium } from 'playwright-core';
 import http from 'node:http';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
-import { decodePng, checkLongPage, checkPdf, LONG_H } from './verify.mjs';
+import { decodePng, checkLongPage, checkPdf, LONG_H, near } from './verify.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '../..');
@@ -51,6 +51,9 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 
 const userDataDir = join(OUT, 'profile');
+// Start from a fresh profile: a kept profile can hold the previous build's service worker and
+// keyboard shortcuts, so a run would test old code.
+rmSync(userDataDir, { recursive: true, force: true });
 const context = await chromium.launchPersistentContext(userDataDir, {
   headless: false,
   executablePath: CHROME,
@@ -222,6 +225,187 @@ try {
     const info = checkPdf(Buffer.from(qPdf.b64, 'base64'));
     check('Quick PDF holds the complete page', info.pages > 1 && Math.abs(info.totalH - LONG_H) <= 2, `pages=${info.pages} imgH=${info.totalH}`);
   } else check('Quick PDF holds the complete page', false, 'no PDF download');
+
+  // --- visible area: one captureVisibleTab, cropped to the viewport without the scrollbar ---
+  await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
+  await page.bringToFront();
+  await sleep(300);
+  const viewport = await page.evaluate(() => {
+    const se = document.scrollingElement || document.documentElement;
+    return { w: se.clientWidth, h: se.clientHeight, innerWidth: window.innerWidth };
+  });
+  await sw.evaluate(() => { self.__dl = []; });
+  const visErr = await sw.evaluate(() => self.__fullshotTest('png', 'visible').then(() => null, (e) => String(e && e.message)));
+  check('Visible capture completes', visErr === null, visErr ?? '');
+  const visDl = await sw.evaluate(() => self.__dl.map((d) => ({ filename: d.filename, b64: d.b64 })));
+  if (visDl.length === 1) {
+    const buf = Buffer.from(visDl[0].b64, 'base64');
+    writeFileSync(join(OUT, 'visible.png'), buf);
+    const png = decodePng(buf);
+    check('Visible capture is the viewport without the scrollbar', png.width === viewport.w && png.height === viewport.h,
+      `${png.width}x${png.height}, viewport ${viewport.w}x${viewport.h}, innerWidth ${viewport.innerWidth}`);
+    check('Visible capture shows the fixed header', near(png.at(10, 10), [17, 24, 39], 12), JSON.stringify(png.at(10, 10)));
+    check('Visible capture right edge is page, not scrollbar', near(png.at(png.width - 1, 300), [255, 255, 255], 8),
+      JSON.stringify(png.at(png.width - 1, 300)));
+  } else check('Visible capture is the viewport without the scrollbar', false, `${visDl.length} downloads`);
+
+  // --- selected area: drag on the page, then one captureVisibleTab cropped to the rectangle ---
+  await sw.evaluate(() => { self.__dl = []; });
+  const childrenBefore = await page.evaluate(() => document.documentElement.children.length);
+  const areaErr = await sw.evaluate(() => self.__fullshotTest('png', 'area').then(() => null, (e) => String(e && e.message)));
+  check('Area selection starts', areaErr === null, areaErr ?? '');
+  check('Area overlay is shown', (await page.evaluate(() => document.documentElement.children.length)) === childrenBefore + 1);
+  await page.mouse.move(100, 150);
+  await page.mouse.down();
+  await page.mouse.move(400, 350, { steps: 10 });
+  await page.mouse.up();
+  for (let i = 0; i < 40 && (await sw.evaluate(() => self.__dl.length)) === 0; i++) await sleep(250);
+  const areaDl = await sw.evaluate(() => self.__dl.map((d) => ({ filename: d.filename, b64: d.b64 })));
+  if (areaDl.length === 1) {
+    const buf = Buffer.from(areaDl[0].b64, 'base64');
+    writeFileSync(join(OUT, 'area.png'), buf);
+    const png = decodePng(buf);
+    check('Area capture has the dragged size', png.width === 300 && png.height === 200, `${png.width}x${png.height}`);
+    // x 100-400, y 150-350 is plain section-1 background (#e0f2fe) on the fixture.
+    const corners = [png.at(0, 0), png.at(299, 0), png.at(0, 199), png.at(299, 199), png.at(150, 100)];
+    check('Area capture shows the page, not the overlay', corners.every((p) => near(p, [224, 242, 254], 10)), JSON.stringify(corners));
+  } else check('Area capture has the dragged size', false, `${areaDl.length} downloads`);
+  check('Area overlay is removed', (await page.evaluate(() => document.documentElement.children.length)) === childrenBefore);
+
+  // --- Escape cancels a selection: no capture, no overlay left ---
+  await sw.evaluate(() => { self.__dl = []; });
+  await sw.evaluate(() => self.__fullshotTest('png', 'area'));
+  await sleep(200);
+  await page.keyboard.press('Escape');
+  await sleep(1000);
+  const cancelled = await sw.evaluate(() => self.__dl.length);
+  const childrenAfter = await page.evaluate(() => document.documentElement.children.length);
+  check('Escape cancels the area selection', cancelled === 0 && childrenAfter === childrenBefore, `downloads=${cancelled}`);
+
+  // --- another capture while the area overlay is open: the overlay goes first ---
+  await sw.evaluate(() => { self.__dl = []; });
+  await sw.evaluate(() => self.__fullshotTest('png', 'area'));
+  await sleep(200);
+  const overErr = await sw.evaluate(() => self.__fullshotTest('png', 'visible').then(() => null, (e) => String(e && e.message)));
+  const overDl = await sw.evaluate(() => self.__dl.map((d) => d.b64));
+  // The overlay dims the page, so the white right edge would be grey.
+  const overEdge = overDl.length === 1 ? decodePng(Buffer.from(overDl[0], 'base64')).at(viewport.w - 1, 300) : null;
+  check('A capture during an area selection does not show the overlay',
+    overErr === null && overEdge && near(overEdge, [255, 255, 255], 8) &&
+      (await page.evaluate(() => document.documentElement.children.length)) === childrenBefore,
+    `${overErr ?? ''} downloads=${overDl.length} edge=${JSON.stringify(overEdge)}`);
+
+  // --- the overlay works above the page's modal dialog, and the page gets none of its events ---
+  await page.evaluate(() => {
+    window.__seen = [];
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'mousedown', 'mouseup', 'click']) {
+      document.addEventListener(type, (e) => window.__seen.push(e.type));
+    }
+    const dialog = document.createElement('dialog');
+    dialog.id = 'page-dialog';
+    dialog.textContent = 'Page dialog';
+    document.body.append(dialog);
+    dialog.showModal();
+  });
+  await sw.evaluate(() => { self.__dl = []; });
+  await sw.evaluate(() => self.__fullshotTest('png', 'area'));
+  await sleep(200);
+  await page.mouse.move(100, 150);
+  await page.mouse.down();
+  await page.mouse.move(400, 350, { steps: 10 });
+  await page.mouse.up();
+  for (let i = 0; i < 40 && (await sw.evaluate(() => self.__dl.length)) === 0; i++) await sleep(250);
+  const modalDl = await sw.evaluate(() => self.__dl.map((d) => d.b64));
+  const modalPng = modalDl.length === 1 ? decodePng(Buffer.from(modalDl[0], 'base64')) : null;
+  check('Area selection works above a modal dialog of the page', modalPng && modalPng.width === 300 && modalPng.height === 200,
+    modalPng ? `${modalPng.width}x${modalPng.height}` : `${modalDl.length} downloads`);
+  const seen = await page.evaluate(() => window.__seen);
+  check('The page gets no pointer or click events from the selection', seen.length === 0, seen.slice(0, 8).join(','));
+  await page.evaluate(() => document.getElementById('page-dialog').remove());
+
+  // --- Enter works when the focus is in a frame; the frame gets no keys; the focus comes back ---
+  await page.evaluate(() => new Promise((resolve) => {
+    const frame = document.createElement('iframe');
+    frame.id = 'page-frame';
+    frame.style.cssText = 'position: fixed; left: 950px; top: 200px; width: 200px; height: 80px;';
+    frame.srcdoc = '<input id="field">';
+    frame.onload = resolve;
+    document.body.append(frame);
+  }));
+  const child = page.frames().find((f) => f.parentFrame() === page.mainFrame());
+  await child.focus('#field');
+  await child.evaluate(() => {
+    window.__keys = [];
+    for (const type of ['keydown', 'keyup']) document.addEventListener(type, (e) => window.__keys.push(`${e.type}:${e.key}`));
+  });
+  await sw.evaluate(() => { self.__dl = []; });
+  await sw.evaluate(() => self.__fullshotTest('png', 'area'));
+  await sleep(200);
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 40 && (await sw.evaluate(() => self.__dl.length)) === 0; i++) await sleep(250);
+  const enterDl = await sw.evaluate(() => self.__dl.map((d) => d.b64));
+  const enterPng = enterDl.length === 1 ? decodePng(Buffer.from(enterDl[0], 'base64')) : null;
+  check('Enter selects the visible area when the focus was in a frame',
+    enterPng && enterPng.width === viewport.w && enterPng.height === viewport.h,
+    enterPng ? `${enterPng.width}x${enterPng.height}` : `${enterDl.length} downloads`);
+  // Chromium clears the focused element inside a frame whenever the focus leaves the frame (as
+  // for any focus() call in the top page), so only the frame itself can get the focus back.
+  const frameKeys = await child.evaluate(() => window.__keys);
+  const topFocus = await page.evaluate(() => document.activeElement && (document.activeElement.id || document.activeElement.tagName));
+  check('The frame gets no keys, and gets the focus back', frameKeys.length === 0 && topFocus === 'page-frame',
+    `keys=${frameKeys.join(',')} focus=${topFocus}`);
+  await page.evaluate(() => document.getElementById('page-frame').remove());
+
+  // --- a classic scrollbar on the left (Firefox with a right-to-left UI): the crop starts after it ---
+  const leftCrop = await sw.evaluate(async () => {
+    const canvas = new OffscreenCanvas(100, 50);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ff0000'; // the scrollbar
+    ctx.fillRect(0, 0, 15, 50);
+    ctx.fillStyle = '#0000ff'; // the page
+    ctx.fillRect(15, 0, 85, 50);
+    const bytes = new Uint8Array(await (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer());
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    const metrics = { viewportWidth: 85, viewportHeight: 50, viewportLeft: 15, innerWidth: 100, devicePixelRatio: 1 };
+    const out = await self.__fullshotCrop(`data:image/png;base64,${btoa(bin)}`, metrics, { x: 0, y: 0, width: 85, height: 50 });
+    const row = out.canvas.getContext('2d').getImageData(0, 0, out.width, 1).data;
+    return { width: out.width, first: Array.from(row.slice(0, 4)), last: Array.from(row.slice(-4)) };
+  });
+  check('Crop starts after a scrollbar on the left', leftCrop.width === 85 && near(leftCrop.first, [0, 0, 255], 2) &&
+    near(leftCrop.last, [0, 0, 255], 2), JSON.stringify(leftCrop));
+
+  // --- in Chrome, a left border on <html> is page content, not a scrollbar ---
+  await page.evaluate(() => { document.documentElement.style.borderLeft = '15px solid rgb(255, 0, 0)'; });
+  await sw.evaluate(() => { self.__dl = []; });
+  const borderErr = await sw.evaluate(() => self.__fullshotTest('png', 'visible').then(() => null, (e) => String(e && e.message)));
+  const borderDl = await sw.evaluate(() => self.__dl.map((d) => d.b64));
+  const borderPng = borderDl.length === 1 ? decodePng(Buffer.from(borderDl[0], 'base64')) : null;
+  check('Visible capture keeps a left border of the page', borderErr === null && borderPng &&
+    near(borderPng.at(0, 300), [255, 0, 0], 8) && near(borderPng.at(borderPng.width - 1, 300), [255, 255, 255], 8),
+    borderPng ? `${JSON.stringify(borderPng.at(0, 300))} ${JSON.stringify(borderPng.at(borderPng.width - 1, 300))}` : borderErr ?? '');
+  await page.evaluate(() => { document.documentElement.style.borderLeft = ''; });
+
+  // --- popup: the scope choice changes the main button; it always opens on "Full page" ---
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extId}/src/popup/index.html`);
+  const popupState = async () => popup.evaluate(() => ({
+    scope: document.querySelector('input[name="scope"]:checked').value,
+    title: document.getElementById('capture-title').textContent,
+  }));
+  const initial = await popupState();
+  await popup.check('input[name="scope"][value="visible"]');
+  const visible = await popupState();
+  await popup.check('input[name="scope"][value="area"]');
+  const areaState = await popupState();
+  check('Popup opens on full page', initial.scope === 'full' && initial.title === 'Capture full page', JSON.stringify(initial));
+  check('Popup scope switches the main button', visible.title === 'Capture visible area' && areaState.title === 'Select an area',
+    `${visible.title} / ${areaState.title}`);
+  const hint = await popup.textContent('#shortcut-hint');
+  check('Popup lists the shortcuts', /Alt\+Shift\+V/.test(hint) && /Alt\+Shift\+S/.test(hint), hint);
+  await popup.close();
+  await page.bringToFront();
+  await sleep(300);
 
   // --- one capture at a time: a second request while one runs is refused, not interleaved ---
   const second = await sw.evaluate(async () => {

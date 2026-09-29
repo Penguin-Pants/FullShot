@@ -13,9 +13,15 @@
     </header>
 
     <main>
+      <div class="scope" role="radiogroup" aria-label="What to capture">
+        <label class="scope__item"><input type="radio" name="scope" value="full" checked /><span>Full page</span></label>
+        <label class="scope__item"><input type="radio" name="scope" value="visible" /><span>Visible</span></label>
+        <label class="scope__item"><input type="radio" name="scope" value="area" /><span>Area</span></label>
+      </div>
+
       <button id="capture-edit" class="btn btn--primary">
-        <span class="btn__title">Capture full page</span>
-        <span class="btn__sub">Scroll, stitch &amp; open the editor</span>
+        <span class="btn__title" id="capture-title">Capture full page</span>
+        <span class="btn__sub" id="capture-sub">Scroll, stitch &amp; open the editor</span>
       </button>
 
       <div class="quick">
@@ -35,7 +41,7 @@
 
     <footer>
       <a id="open-options" href="#">Options</a>
-      <span class="hint">Shortcut: Alt+Shift+P</span>
+      <span class="hint" id="shortcut-hint">Shortcut: Alt+Shift+P</span>
     </footer>
 
     <script type="module" src="./popup.ts"></script>

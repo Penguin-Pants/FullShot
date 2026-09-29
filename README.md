@@ -1,7 +1,8 @@
 # FullShot — Full Page Screen Capture
 
-Capture an **entire web page** (not just the visible part), annotate it, and export as **PNG,
-JPEG, or PDF** — everything runs locally in your browser. No account, no upload, no watermark.
+Capture an **entire web page** (not just the visible part), the **visible area** or a **selected
+area**, annotate it, and export as **PNG, JPEG, or PDF**. Everything runs locally in your browser.
+No account, no upload, no watermark.
 
 FullShot is a clean-room, MIT-licensed browser extension (Chrome/Edge and Firefox, Manifest V3).
 It is an independent implementation and is not affiliated with, or derived from, any other
@@ -17,6 +18,9 @@ worker.
 - **Full-page capture** — scrolls the page in viewport steps, snapshots each with
   `chrome.tabs.captureVisibleTab`, and stitches the tiles into one image. Fixed/sticky headers are
   captured once (not repeated on every tile).
+- **Visible-area capture** — what you see now, without the scrollbar (Alt+Shift+V).
+- **Selected-area capture** — drag a rectangle on the page; Enter takes the visible area and Esc
+  cancels (Alt+Shift+S).
 - **Annotation editor** (fabric.js) — crop, pixelate/redact, arrow, box, ellipse, text, freehand
   pen, and highlighter, with undo/redo and zoom.
 - **Local export** — PNG, JPEG, and multi-page **PDF** (jsPDF) with "smart" page splitting that
@@ -102,6 +106,13 @@ reviewers) are in [`docs/amo-listing.md`](docs/amo-listing.md).
 
 - Click the toolbar icon (or press **Alt+Shift+P**) → **Capture full page**. The stitched image
   opens in the editor.
+- Choose **Visible** or **Area** at the top of the popup to capture only what you see, or a
+  rectangle you drag on the page. The main button and the Quick export buttons use that choice.
+  The popup always opens on **Full page**.
+- Shortcuts: **Alt+Shift+V** captures the visible area and **Alt+Shift+S** starts an area
+  selection; both open the editor. If a shortcut capture fails, the toolbar button shows a red
+  **!** and its tooltip says why. You can change the keys in the browser's extension-shortcut
+  settings.
 - **Quick export** buttons in the popup save PNG, JPEG, or PDF straight to your downloads: the
   same capture as the main button, without opening the editor. You stay on the page, so you can
   export another format right away.
@@ -145,6 +156,17 @@ fixed/sticky elements past the first row), throttles, checks the tab is still th
 calls `captureVisibleTab` → restores the page → `stitchTiles` composites everything on one
 `OffscreenCanvas` (pixel scale taken from the captured tiles) → that canvas is encoded as PNG, JPEG,
 or PDF and downloaded, or stored in IndexedDB for the editor tab.
+
+**Visible and area captures** leave the page as it is (fixed and sticky elements show, as you see
+them). Visible: inject `measureViewport` → one `captureVisibleTab` → `cropViewport` removes a
+classic scrollbar (on the right, or on the left in Firefox with a right-to-left UI). Area: inject
+`startAreaSelection`, a modal `<dialog>` in a closed shadow root, so it is above the page's own
+dialogs, popovers and fullscreen elements. It takes the keyboard focus and gives it back, and the
+page gets none of its pointer or key events. When the person finishes, the overlay removes itself,
+waits two frames and sends `AREA_SELECTED` with the rectangle and viewport metrics; the background
+then takes one `captureVisibleTab` and crops it. The two steps are separate messages, so nothing
+waits in the background while the person selects. A full-page or visible capture that starts while
+the overlay is open removes it first.
 
 Failures name the stage that failed (preparing the page, capturing, saving, …) in the popup, and the
 background logs a `[FullShot] capture failed` entry with the stage, tab id, page origin, page

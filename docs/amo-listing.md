@@ -40,7 +40,8 @@ Everything happens in your browser. FullShot needs no account and adds no waterm
 
 FEATURES
 • Full-page capture with one click, or press Alt+Shift+P
-• Quick export: save the page straight to PNG, JPEG or PDF
+• Visible-area capture (Alt+Shift+V) and selected-area capture: drag a rectangle (Alt+Shift+S)
+• Quick export: save the capture straight to PNG, JPEG or PDF
 • An editor to mark up the capture before you save it:
   - crop
   - pixelate to hide private details
@@ -55,7 +56,8 @@ FEATURES
 HOW TO USE
 1. Open the page that you want to capture.
 2. Click the FullShot button in the toolbar, or press Alt+Shift+P.
-3. Click "Capture full page" to open the editor. Or click PNG, JPEG or PDF to save the file at once.
+3. Choose Full page, Visible or Area at the top of the popup.
+4. Click the main button to open the editor. Or click PNG, JPEG or PDF to save the file at once. For Area, drag a rectangle on the page first.
 
 PERMISSIONS
 • Access to the current tab: only for the tab where you click the FullShot button, and only at that time. FullShot scrolls the page to capture it, then puts it back as it was.
