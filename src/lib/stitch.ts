@@ -101,7 +101,9 @@ export async function cropViewport(
 ): Promise<StitchResult> {
   const bmp = await bitmapFromDataUrl(dataUrl);
   const dpr = tilePixelScale(bmp.width, metrics);
-  const sx = Math.min(Math.max(0, Math.round(rect.x * dpr)), bmp.width - 1);
+  // The rectangle is relative to the viewport, which starts after a classic scrollbar on the left.
+  const left = Math.max(0, metrics.viewportLeft || 0);
+  const sx = Math.min(Math.max(0, Math.round((left + rect.x) * dpr)), bmp.width - 1);
   const sy = Math.min(Math.max(0, Math.round(rect.y * dpr)), bmp.height - 1);
   const sw = Math.max(1, Math.min(bmp.width - sx, Math.round(rect.width * dpr)));
   const sh = Math.max(1, Math.min(bmp.height - sy, Math.round(rect.height * dpr)));

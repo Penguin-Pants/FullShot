@@ -297,7 +297,7 @@ function onAreaSelected(msg: AreaSelectedMessage, sender: chrome.runtime.Message
 }
 
 function isUsableArea(rect: ViewportRect, metrics: ViewportMetrics): boolean {
-  const numbers = [rect.x, rect.y, rect.width, rect.height, metrics.innerWidth, metrics.devicePixelRatio];
+  const numbers = [rect.x, rect.y, rect.width, rect.height, metrics.viewportLeft, metrics.innerWidth, metrics.devicePixelRatio];
   return numbers.every((n) => typeof n === 'number' && Number.isFinite(n)) && rect.width >= 1 && rect.height >= 1;
 }
 
@@ -538,12 +538,17 @@ async function finishCapture(
 // E2E-only: lets the test harness kick off a real capture without a toolbar gesture.
 // For scope 'area' it resolves once the overlay shows; the capture runs when the selection ends.
 if (__FULLSHOT_TEST__) {
-  (self as unknown as { __fullshotTest?: (mode: CaptureMode, scope?: CaptureScope) => Promise<void> }).__fullshotTest =
-    async (mode, scope = 'full') => {
-      const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-      if (!tab?.id) throw new Error('No active tab.');
-      if (captureRunning) throw new Error(MSG.busy);
-      if (scope === 'area') await beginAreaSelection(mode, tab.id);
-      else await startCapture(mode, tab.id, scope);
-    };
+  const hooks = self as unknown as {
+    __fullshotTest?: (mode: CaptureMode, scope?: CaptureScope) => Promise<void>;
+    /** Chromium never puts the page scrollbar on the left, so the harness checks that crop directly. */
+    __fullshotCrop?: typeof cropViewport;
+  };
+  hooks.__fullshotTest = async (mode, scope = 'full') => {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (!tab?.id) throw new Error('No active tab.');
+    if (captureRunning) throw new Error(MSG.busy);
+    if (scope === 'area') await beginAreaSelection(mode, tab.id);
+    else await startCapture(mode, tab.id, scope);
+  };
+  hooks.__fullshotCrop = cropViewport;
 }

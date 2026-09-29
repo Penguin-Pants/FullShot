@@ -28,6 +28,11 @@ export interface ViewportMetrics {
   /** Visible viewport size in CSS px, excluding any classic scrollbar. */
   viewportWidth: number;
   viewportHeight: number;
+  /**
+   * Where the viewport starts in the captured image, in CSS px: the width of a classic scrollbar
+   * on the left (Firefox with a right-to-left browser UI), otherwise 0.
+   */
+  viewportLeft: number;
   /** window.innerWidth in CSS px: the width that captureVisibleTab returns, scrollbar included. */
   innerWidth: number;
   /** window.devicePixelRatio as the page reports it (may be spoofed; see stitch.ts). */

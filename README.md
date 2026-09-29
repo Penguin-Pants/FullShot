@@ -159,10 +159,14 @@ or PDF and downloaded, or stored in IndexedDB for the editor tab.
 
 **Visible and area captures** leave the page as it is (fixed and sticky elements show, as you see
 them). Visible: inject `measureViewport` → one `captureVisibleTab` → `cropViewport` removes a
-classic scrollbar. Area: inject `startAreaSelection`, an overlay in a closed shadow root; when the
-person finishes, the overlay removes itself, waits two frames and sends `AREA_SELECTED` with the
-rectangle and viewport metrics; the background then takes one `captureVisibleTab` and crops it.
-The two steps are separate messages, so nothing waits in the background while the person selects.
+classic scrollbar (on the right, or on the left in Firefox with a right-to-left UI). Area: inject
+`startAreaSelection`, a modal `<dialog>` in a closed shadow root, so it is above the page's own
+dialogs, popovers and fullscreen elements. It takes the keyboard focus and gives it back, and the
+page gets none of its pointer or key events. When the person finishes, the overlay removes itself,
+waits two frames and sends `AREA_SELECTED` with the rectangle and viewport metrics; the background
+then takes one `captureVisibleTab` and crops it. The two steps are separate messages, so nothing
+waits in the background while the person selects. A full-page or visible capture that starts while
+the overlay is open removes it first.
 
 Failures name the stage that failed (preparing the page, capturing, saving, …) in the popup, and the
 background logs a `[FullShot] capture failed` entry with the stage, tab id, page origin, page
