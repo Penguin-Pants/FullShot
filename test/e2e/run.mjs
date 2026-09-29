@@ -10,10 +10,10 @@
  */
 import { chromium } from 'playwright-core';
 import http from 'node:http';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
-import { decodePng, checkLongPage, checkPdf, LONG_H } from './verify.mjs';
+import { decodePng, checkLongPage, checkPdf, LONG_H, near } from './verify.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '../..');
@@ -51,6 +51,9 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 
 const userDataDir = join(OUT, 'profile');
+// Start from a fresh profile: a kept profile can hold the previous build's service worker and
+// keyboard shortcuts, so a run would test old code.
+rmSync(userDataDir, { recursive: true, force: true });
 const context = await chromium.launchPersistentContext(userDataDir, {
   headless: false,
   executablePath: CHROME,
@@ -222,6 +225,83 @@ try {
     const info = checkPdf(Buffer.from(qPdf.b64, 'base64'));
     check('Quick PDF holds the complete page', info.pages > 1 && Math.abs(info.totalH - LONG_H) <= 2, `pages=${info.pages} imgH=${info.totalH}`);
   } else check('Quick PDF holds the complete page', false, 'no PDF download');
+
+  // --- visible area: one captureVisibleTab, cropped to the viewport without the scrollbar ---
+  await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
+  await page.bringToFront();
+  await sleep(300);
+  const viewport = await page.evaluate(() => {
+    const se = document.scrollingElement || document.documentElement;
+    return { w: se.clientWidth, h: se.clientHeight, innerWidth: window.innerWidth };
+  });
+  await sw.evaluate(() => { self.__dl = []; });
+  const visErr = await sw.evaluate(() => self.__fullshotTest('png', 'visible').then(() => null, (e) => String(e && e.message)));
+  check('Visible capture completes', visErr === null, visErr ?? '');
+  const visDl = await sw.evaluate(() => self.__dl.map((d) => ({ filename: d.filename, b64: d.b64 })));
+  if (visDl.length === 1) {
+    const buf = Buffer.from(visDl[0].b64, 'base64');
+    writeFileSync(join(OUT, 'visible.png'), buf);
+    const png = decodePng(buf);
+    check('Visible capture is the viewport without the scrollbar', png.width === viewport.w && png.height === viewport.h,
+      `${png.width}x${png.height}, viewport ${viewport.w}x${viewport.h}, innerWidth ${viewport.innerWidth}`);
+    check('Visible capture shows the fixed header', near(png.at(10, 10), [17, 24, 39], 12), JSON.stringify(png.at(10, 10)));
+    check('Visible capture right edge is page, not scrollbar', near(png.at(png.width - 1, 300), [255, 255, 255], 8),
+      JSON.stringify(png.at(png.width - 1, 300)));
+  } else check('Visible capture is the viewport without the scrollbar', false, `${visDl.length} downloads`);
+
+  // --- selected area: drag on the page, then one captureVisibleTab cropped to the rectangle ---
+  await sw.evaluate(() => { self.__dl = []; });
+  const childrenBefore = await page.evaluate(() => document.documentElement.children.length);
+  const areaErr = await sw.evaluate(() => self.__fullshotTest('png', 'area').then(() => null, (e) => String(e && e.message)));
+  check('Area selection starts', areaErr === null, areaErr ?? '');
+  check('Area overlay is shown', (await page.evaluate(() => document.documentElement.children.length)) === childrenBefore + 1);
+  await page.mouse.move(100, 150);
+  await page.mouse.down();
+  await page.mouse.move(400, 350, { steps: 10 });
+  await page.mouse.up();
+  for (let i = 0; i < 40 && (await sw.evaluate(() => self.__dl.length)) === 0; i++) await sleep(250);
+  const areaDl = await sw.evaluate(() => self.__dl.map((d) => ({ filename: d.filename, b64: d.b64 })));
+  if (areaDl.length === 1) {
+    const buf = Buffer.from(areaDl[0].b64, 'base64');
+    writeFileSync(join(OUT, 'area.png'), buf);
+    const png = decodePng(buf);
+    check('Area capture has the dragged size', png.width === 300 && png.height === 200, `${png.width}x${png.height}`);
+    // x 100-400, y 150-350 is plain section-1 background (#e0f2fe) on the fixture.
+    const corners = [png.at(0, 0), png.at(299, 0), png.at(0, 199), png.at(299, 199), png.at(150, 100)];
+    check('Area capture shows the page, not the overlay', corners.every((p) => near(p, [224, 242, 254], 10)), JSON.stringify(corners));
+  } else check('Area capture has the dragged size', false, `${areaDl.length} downloads`);
+  check('Area overlay is removed', (await page.evaluate(() => document.documentElement.children.length)) === childrenBefore);
+
+  // --- Escape cancels a selection: no capture, no overlay left ---
+  await sw.evaluate(() => { self.__dl = []; });
+  await sw.evaluate(() => self.__fullshotTest('png', 'area'));
+  await sleep(200);
+  await page.keyboard.press('Escape');
+  await sleep(1000);
+  const cancelled = await sw.evaluate(() => self.__dl.length);
+  const childrenAfter = await page.evaluate(() => document.documentElement.children.length);
+  check('Escape cancels the area selection', cancelled === 0 && childrenAfter === childrenBefore, `downloads=${cancelled}`);
+
+  // --- popup: the scope choice changes the main button; it always opens on "Full page" ---
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extId}/src/popup/index.html`);
+  const popupState = async () => popup.evaluate(() => ({
+    scope: document.querySelector('input[name="scope"]:checked').value,
+    title: document.getElementById('capture-title').textContent,
+  }));
+  const initial = await popupState();
+  await popup.check('input[name="scope"][value="visible"]');
+  const visible = await popupState();
+  await popup.check('input[name="scope"][value="area"]');
+  const areaState = await popupState();
+  check('Popup opens on full page', initial.scope === 'full' && initial.title === 'Capture full page', JSON.stringify(initial));
+  check('Popup scope switches the main button', visible.title === 'Capture visible area' && areaState.title === 'Select an area',
+    `${visible.title} / ${areaState.title}`);
+  const hint = await popup.textContent('#shortcut-hint');
+  check('Popup lists the shortcuts', /Alt\+Shift\+V/.test(hint) && /Alt\+Shift\+S/.test(hint), hint);
+  await popup.close();
+  await page.bringToFront();
+  await sleep(300);
 
   // --- one capture at a time: a second request while one runs is refused, not interleaved ---
   const second = await sw.evaluate(async () => {

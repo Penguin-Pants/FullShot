@@ -12,9 +12,9 @@ export function sharedManifestFields() {
     name: 'FullShot — Full Page Screenshot',
     version: pkg.version,
     description:
-      'Capture an entire web page, annotate it, and export as PNG, JPEG, or PDF — all locally in your browser.',
+      'Capture a full web page, the visible area or a selected area, annotate it, and export as PNG, JPEG or PDF, locally.',
     action: {
-      default_title: 'FullShot — capture full page',
+      default_title: 'FullShot — screenshot',
       default_popup: 'src/popup/index.html',
       default_icon: {
         '16': 'icons/icon16.png',
@@ -27,6 +27,15 @@ export function sharedManifestFields() {
       _execute_action: {
         suggested_key: { default: 'Alt+Shift+P' },
         description: 'Capture the full page',
+      },
+      // Both open the editor. The background handles them (chrome.commands.onCommand).
+      'capture-visible': {
+        suggested_key: { default: 'Alt+Shift+V' },
+        description: 'Capture the visible area',
+      },
+      'capture-area': {
+        suggested_key: { default: 'Alt+Shift+S' },
+        description: 'Capture a selected area',
       },
     },
     permissions: ['activeTab', 'scripting', 'storage', 'unlimitedStorage', 'downloads'],

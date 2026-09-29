@@ -3,7 +3,7 @@
  * Runs in the background (Chrome service worker / Firefox event page). All math is in the
  * physical pixels that captureVisibleTab returns.
  */
-import type { CaptureTile, PageMetrics } from './types';
+import type { CaptureTile, PageMetrics, ViewportMetrics, ViewportRect } from './types';
 
 /**
  * Widely-safe maximum canvas dimension. Chrome's hard limit is higher, but very tall canvases
@@ -35,7 +35,10 @@ export interface StitchOptions {
  * the scale from the first tile, and keep the reported value only when it agrees (it is exact,
  * while the measured one carries innerWidth's rounding at fractional zoom levels).
  */
-export function tilePixelScale(tileWidthPx: number, metrics: PageMetrics): number {
+export function tilePixelScale(
+  tileWidthPx: number,
+  metrics: Pick<PageMetrics, 'innerWidth' | 'devicePixelRatio'>,
+): number {
   const reported = metrics.devicePixelRatio || 1;
   if (!metrics.innerWidth || !tileWidthPx) return reported;
   const measured = tileWidthPx / metrics.innerWidth;
@@ -83,6 +86,36 @@ export async function stitchTiles(
   }
 
   return { canvas, width: canvasW, height: canvasH, scale, pixelScale: dpr };
+}
+
+/**
+ * Cut a rectangle (CSS px, relative to the viewport) out of one captureVisibleTab image. Used by
+ * the visible-area capture (the rectangle is the viewport without a classic scrollbar) and the
+ * area capture (the rectangle the person dragged).
+ */
+export async function cropViewport(
+  dataUrl: string,
+  metrics: ViewportMetrics,
+  rect: ViewportRect,
+  opts: StitchOptions = {},
+): Promise<StitchResult> {
+  const bmp = await bitmapFromDataUrl(dataUrl);
+  const dpr = tilePixelScale(bmp.width, metrics);
+  const sx = Math.min(Math.max(0, Math.round(rect.x * dpr)), bmp.width - 1);
+  const sy = Math.min(Math.max(0, Math.round(rect.y * dpr)), bmp.height - 1);
+  const sw = Math.max(1, Math.min(bmp.width - sx, Math.round(rect.width * dpr)));
+  const sh = Math.max(1, Math.min(bmp.height - sy, Math.round(rect.height * dpr)));
+
+  const canvas = new OffscreenCanvas(sw, sh);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not get a 2D context for cropping.');
+  if (opts.background) {
+    ctx.fillStyle = opts.background;
+    ctx.fillRect(0, 0, sw, sh);
+  }
+  ctx.drawImage(bmp, sx, sy, sw, sh, 0, 0, sw, sh);
+  bmp.close();
+  return { canvas, width: sw, height: sh, scale: 1, pixelScale: dpr };
 }
 
 async function bitmapFromDataUrl(dataUrl: string): Promise<ImageBitmap> {

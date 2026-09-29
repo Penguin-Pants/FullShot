@@ -28,6 +28,7 @@ Paste-ready copy for the **Store listing** tab (separate from Privacy practices)
 >
 > **Features**
 > • One-click full-page capture (or press Alt+Shift+P)
+> • Visible-area capture (Alt+Shift+V) and selected-area capture (Alt+Shift+S)
 > • Quick export straight to PNG, JPEG, or PDF
 > • Built-in editor to mark up your capture before saving:
 >   – Crop
