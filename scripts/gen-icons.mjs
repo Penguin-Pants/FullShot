@@ -2,6 +2,9 @@
  * Generates the FullShot toolbar/store icons as PNGs with no external image deps.
  * A gradient rounded square with a white "capture frame" motif, supersampled 4x for smooth edges.
  *
+ * Also writes the Chrome Web Store icon (docs/chrome-web-store/store-icon-128.png): the same
+ * artwork at 96x96 with 16px of transparent padding on each side, the size the store asks for.
+ *
  *   node scripts/gen-icons.mjs
  */
 import { deflateSync } from 'node:zlib';
@@ -11,6 +14,7 @@ import { dirname, resolve } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(__dirname, '../public/icons');
+const STORE_DIR = resolve(__dirname, '../docs/chrome-web-store');
 const SIZES = [16, 32, 48, 128];
 const SS = 4; // supersampling factor
 
@@ -148,3 +152,15 @@ for (const size of SIZES) {
   writeFileSync(resolve(OUT_DIR, `icon${size}.png`), png);
   console.log(`wrote icons/icon${size}.png (${png.length} bytes)`);
 }
+
+// Store icon: 96x96 artwork centered on a transparent 128x128 canvas.
+const STORE = 128;
+const ART = 96;
+const pad = (STORE - ART) / 2;
+const art = renderSize(ART);
+const store = Buffer.alloc(STORE * STORE * 4);
+for (let y = 0; y < ART; y++) art.copy(store, ((y + pad) * STORE + pad) * 4, y * ART * 4, (y + 1) * ART * 4);
+mkdirSync(STORE_DIR, { recursive: true });
+const storePng = encodePng(store, STORE);
+writeFileSync(resolve(STORE_DIR, 'store-icon-128.png'), storePng);
+console.log(`wrote docs/chrome-web-store/store-icon-128.png (${storePng.length} bytes)`);

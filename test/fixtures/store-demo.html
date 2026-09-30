@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Seven Days on the Coastal Trail · Northbound Notes</title>
+    <!--
+      A fictional magazine page for the Chrome Web Store screenshots (test/e2e/screenshots.mjs).
+      Every name on it is invented. It uses only CSS shapes, so it needs no image files.
+    -->
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; }
+      body {
+        font: 19px/1.65 'Liberation Serif', Georgia, serif;
+        color: #1f2933;
+        background: #fbfaf7;
+      }
+      .sans { font-family: 'Liberation Sans', Arial, sans-serif; }
+
+      /* Fixed site header: FullShot captures it once, at the top. */
+      header.site {
+        position: fixed; top: 0; left: 0; right: 0; height: 64px; z-index: 10;
+        display: flex; align-items: center; gap: 36px; padding: 0 48px;
+        background: #fff; border-bottom: 1px solid #e7e2d8;
+        font-family: 'Liberation Sans', Arial, sans-serif;
+      }
+      .logo { font-weight: 700; font-size: 22px; letter-spacing: -0.3px; color: #14362f; }
+      .logo span { color: #d9822b; }
+      header.site nav { display: flex; gap: 26px; font-size: 15px; color: #52606d; }
+      header.site nav b { color: #14362f; }
+      .subscribe {
+        margin-left: auto; padding: 9px 18px; border-radius: 999px; font-size: 14px; font-weight: 700;
+        background: #14362f; color: #fff;
+      }
+
+      /* Hero "photo": a coastal landscape drawn with gradients. */
+      .hero {
+        position: relative; height: 470px; margin-top: 64px; overflow: hidden;
+        background: linear-gradient(180deg, #f7c59f 0%, #f4a582 32%, #e98a6b 52%, #6b8fb3 53%, #38618c 100%);
+      }
+      .sun {
+        position: absolute; left: 62%; top: 150px; width: 150px; height: 150px; border-radius: 50%;
+        background: radial-gradient(circle, #fff4d6 0%, #ffd79a 60%, rgba(255, 215, 154, 0) 72%);
+      }
+      .ridge { position: absolute; left: 0; right: 0; bottom: 0; }
+      .ridge--far { height: 300px; background: #b86a67; clip-path: polygon(0 60%, 12% 38%, 22% 52%, 35% 22%, 48% 48%, 58% 35%, 70% 58%, 100% 30%, 100% 100%, 0 100%); opacity: 0.75; }
+      .ridge--near { height: 230px; background: #2d4a53; clip-path: polygon(0 40%, 16% 62%, 30% 30%, 44% 56%, 60% 44%, 76% 70%, 88% 48%, 100% 64%, 100% 100%, 0 100%); }
+      .hero__text {
+        position: absolute; left: 0; right: 0; bottom: 0; padding: 48px 0 40px;
+        background: linear-gradient(180deg, rgba(10, 25, 30, 0) 0%, rgba(10, 25, 30, 0.72) 100%);
+        color: #fff;
+      }
+      .hero__text .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+      .kicker { font: 700 13px/1 'Liberation Sans', Arial, sans-serif; letter-spacing: 1.6px; text-transform: uppercase; color: #ffd79a; }
+      h1 { font: 700 50px/1.1 'Liberation Serif', Georgia, serif; margin: 12px 0 10px; letter-spacing: -0.5px; }
+      .byline { font: 15px 'Liberation Sans', Arial, sans-serif; opacity: 0.9; }
+
+      article { max-width: 860px; margin: 0 auto; padding: 44px 24px 24px; }
+      article p { margin: 0 0 22px; }
+      article p.lead::first-letter { float: left; font-size: 74px; line-height: 0.9; padding: 6px 10px 0 0; color: #14362f; font-weight: 700; }
+      h2 { font: 700 30px/1.2 'Liberation Serif', Georgia, serif; color: #14362f; margin: 38px 0 14px; }
+      blockquote {
+        margin: 34px 0; padding: 6px 0 6px 26px; border-left: 5px solid #d9822b;
+        font: italic 28px/1.4 'Liberation Serif', Georgia, serif; color: #14362f;
+      }
+
+      .facts {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 30px 0 34px;
+        font-family: 'Liberation Sans', Arial, sans-serif;
+      }
+      .fact { background: #fff; border: 1px solid #e7e2d8; border-radius: 12px; padding: 16px; }
+      .fact b { display: block; font-size: 26px; color: #14362f; }
+      .fact span { font-size: 13px; color: #7b8794; text-transform: uppercase; letter-spacing: 0.8px; }
+
+      /* Elevation chart made of bars. */
+      .chart { background: #fff; border: 1px solid #e7e2d8; border-radius: 14px; padding: 20px 22px; margin: 28px 0; font-family: 'Liberation Sans', Arial, sans-serif; }
+      .chart__title { font-weight: 700; font-size: 16px; color: #14362f; }
+      .chart__sub { font-size: 13px; color: #7b8794; margin-bottom: 14px; }
+      .bars { display: flex; align-items: flex-end; gap: 10px; height: 170px; border-bottom: 2px solid #e7e2d8; }
+      .bars div { flex: 1; border-radius: 6px 6px 0 0; background: linear-gradient(180deg, #2f8f83, #14362f); }
+      .bars div.hi { background: linear-gradient(180deg, #f0a35e, #d9822b); }
+      .labels { display: flex; gap: 10px; font-size: 12px; color: #7b8794; margin-top: 6px; }
+      .labels span { flex: 1; text-align: center; }
+
+      /* Photo grid, drawn with gradients. */
+      .photos { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 180px 180px; gap: 12px; margin: 30px 0 10px; }
+      .photo { border-radius: 12px; position: relative; overflow: hidden; }
+      .photo--a { grid-row: span 2; background: linear-gradient(180deg, #9cc9dd 0%, #d7eef2 45%, #3e7c6f 46%, #24493f 100%); }
+      .photo--a::after { content: ''; position: absolute; inset: 45% 0 0; background: linear-gradient(115deg, transparent 0 40%, rgba(255, 255, 255, 0.18) 40% 43%, transparent 43%); }
+      .photo--b { background: linear-gradient(160deg, #ffe0b5 0%, #f2a65a 55%, #8c4a2f 100%); }
+      .photo--c { background: linear-gradient(200deg, #274b69 0%, #3f7fa6 50%, #cfe3ea 100%); }
+      .caption { font: 14px 'Liberation Sans', Arial, sans-serif; color: #7b8794; margin-bottom: 26px; }
+
+      table { width: 100%; border-collapse: collapse; margin: 18px 0 30px; font: 15px 'Liberation Sans', Arial, sans-serif; }
+      th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; color: #7b8794; border-bottom: 2px solid #e7e2d8; padding: 10px 8px; }
+      td { border-bottom: 1px solid #efebe3; padding: 11px 8px; }
+      td:first-child { font-weight: 700; color: #14362f; }
+
+      .card {
+        display: flex; gap: 20px; align-items: center; background: #14362f; color: #e9f2ef;
+        border-radius: 16px; padding: 24px 26px; margin: 36px 0; font-family: 'Liberation Sans', Arial, sans-serif;
+      }
+      .card__icon { width: 64px; height: 64px; border-radius: 14px; flex: none; background: linear-gradient(135deg, #f0a35e, #d9822b); }
+      .card b { display: block; font-size: 19px; color: #fff; }
+      .card span { font-size: 15px; opacity: 0.85; }
+
+      footer { background: #14362f; color: #b7cbc5; font: 14px 'Liberation Sans', Arial, sans-serif; padding: 40px 48px; margin-top: 40px; }
+      footer .logo { color: #fff; }
+    </style>
+  </head>
+  <body>
+    <header class="site">
+      <div class="logo">Northbound<span>.</span>Notes</div>
+      <nav><b>Trails</b><span>Gear</span><span>Places</span><span>Guides</span><span>Photo essays</span></nav>
+      <div class="subscribe">Subscribe</div>
+    </header>
+
+    <div class="hero">
+      <div class="sun"></div>
+      <div class="ridge ridge--far"></div>
+      <div class="ridge ridge--near"></div>
+      <div class="hero__text">
+        <div class="wrap">
+          <div class="kicker">Trail diary · 12 min read</div>
+          <h1>Seven Days on the Coastal Trail</h1>
+          <div class="byline">By Mara Ellison · Photos by Theo Park · Updated June 4</div>
+        </div>
+      </div>
+    </div>
+
+    <article>
+      <p class="lead">
+        The trail starts where the road gives up. A gravel lot, a wooden sign, and then nothing but
+        cliffs, wind and a thin line of dirt that follows the coast north for ninety-four miles. We
+        had seven days, two stoves and a plan that we changed every morning.
+      </p>
+      <p>
+        Most people walk the route from south to north, so that the wind is at their back. We did the
+        same. The first day is easy: long, flat stretches above small beaches, with the ocean on the
+        left and fields of yellow gorse on the right. By the afternoon, our legs had found a rhythm.
+      </p>
+
+      <div class="facts">
+        <div class="fact"><b>94 mi</b><span>Distance</span></div>
+        <div class="fact"><b>7 days</b><span>Duration</span></div>
+        <div class="fact"><b>11,400 ft</b><span>Total climb</span></div>
+        <div class="fact"><b>6 camps</b><span>Overnights</span></div>
+      </div>
+
+      <h2>Day two: the long climb</h2>
+      <p>
+        The second day is the one that people talk about. The path leaves the beaches and climbs
+        through a forest of old spruce to a ridge that is almost two thousand feet above the water.
+        On a clear day, you can see the next three headlands. On our day, we could see the fog.
+      </p>
+
+      <div class="chart">
+        <div class="chart__title">Daily elevation gain</div>
+        <div class="chart__sub">Feet climbed on each day of the trip</div>
+        <div class="bars">
+          <div style="height: 34%"></div>
+          <div class="hi" style="height: 96%"></div>
+          <div style="height: 58%"></div>
+          <div style="height: 44%"></div>
+          <div class="hi" style="height: 82%"></div>
+          <div style="height: 50%"></div>
+          <div style="height: 28%"></div>
+        </div>
+        <div class="labels"><span>Day 1</span><span>Day 2</span><span>Day 3</span><span>Day 4</span><span>Day 5</span><span>Day 6</span><span>Day 7</span></div>
+      </div>
+
+      <blockquote>“The fog lifted for ten minutes, and in that time we understood why people come back.”</blockquote>
+
+      <p>
+        We camped that night in a small clearing near a creek. The water was cold and clear, and the
+        filter worked hard. Dinner was lentils, rice and too much hot sauce. Nobody complained.
+      </p>
+
+      <div class="photos">
+        <div class="photo photo--a"></div>
+        <div class="photo photo--b"></div>
+        <div class="photo photo--c"></div>
+      </div>
+      <div class="caption">Left: the beach below Gull Point at low tide. Right: sunset on day four, and the harbor at Port Ansel.</div>
+
+      <h2>Where we stayed</h2>
+      <table>
+        <thead><tr><th>Night</th><th>Camp</th><th>Water</th><th>Distance</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Sandy Cove</td><td>Creek</td><td>13.2 mi</td></tr>
+          <tr><td>2</td><td>Spruce Ridge</td><td>Spring, seasonal</td><td>11.8 mi</td></tr>
+          <tr><td>3</td><td>Otter Bay</td><td>Creek</td><td>14.5 mi</td></tr>
+          <tr><td>4</td><td>Gull Point</td><td>None, carry in</td><td>12.1 mi</td></tr>
+          <tr><td>5</td><td>Lantern Hill</td><td>Tap at ranger hut</td><td>15.0 mi</td></tr>
+          <tr><td>6</td><td>Port Ansel</td><td>Town</td><td>13.9 mi</td></tr>
+        </tbody>
+      </table>
+
+      <h2>The last morning</h2>
+      <p>
+        On the seventh day, the trail comes down from the cliffs into a small harbor town. There is a
+        bakery next to the bus stop. We were there when it opened, and we stayed until the bus came.
+        It was the best bread any of us had ever eaten, which is what seven days of lentils will do.
+      </p>
+
+      <div class="card">
+        <div class="card__icon"></div>
+        <div><b>Plan your own trip</b><span>Maps, permits and a day-by-day packing list for the Coastal Trail.</span></div>
+      </div>
+    </article>
+
+    <footer>
+      <div class="logo">Northbound<span style="color:#d9822b">.</span>Notes</div>
+      <p>Stories from the trail, since 2014. About · Contact · Newsletter</p>
+    </footer>
+  </body>
+</html>

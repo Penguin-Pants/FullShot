@@ -1,86 +1,106 @@
-# Chrome Web Store — Privacy practices answers (FullShot)
+# Chrome Web Store: Privacy tab (FullShot)
 
-Paste-ready answers for the **Privacy practices** tab of the Chrome Web Store Developer Dashboard.
-Everything below reflects the shipped code: FullShot processes and stores data **only on the
-user's device** and makes **no network requests** of any kind.
+Paste-ready answers for the **Privacy** tab of the Chrome Web Store Developer Dashboard. The
+answers match the shipped code and [`PRIVACY.md`](../PRIVACY.md). Keep the three consistent: the
+store can remove an item when the dashboard, the privacy policy and the code do not agree.
 
----
+Facts from the code that the answers depend on:
+
+- FullShot makes no network requests. It has no server, no analytics and no remote code.
+- It reads a page only after the user starts a capture (`activeTab`), and only the pixels it
+  captures, plus the page address and title.
+- A capture opened in the editor is kept in IndexedDB with the page address, the page title and
+  the capture time (`src/lib/db.ts`). FullShot keeps the 10 newest and deletes older ones.
+- The two options (JPEG/PDF quality, PDF stamp) are in `chrome.storage.sync`. If the user turns on
+  Chrome sync, Chrome copies them to the user's other browsers. The developer never gets them.
 
 ## Single purpose
 
-> FullShot captures a screenshot of the entire current web page — including the parts below the
-> fold — then lets the user annotate it and save it as a PNG, JPEG, or PDF file on their own
-> device. Capturing, editing, and exporting full-page screenshots is the extension's only purpose.
+```text
+FullShot takes a screenshot of the current web page (the full page, the visible area or an area the user selects), lets the user mark it up, and saves it as a PNG, JPEG or PDF file on the user's device. Capturing, marking up and saving screenshots is its only purpose.
+```
 
-## Permission justifications
+## Permission justification
 
 **activeTab**
-> Needed to read the rendered pixels of the page the user is currently viewing so it can be
-> captured. Access is granted only for the tab that is active at the moment the user clicks the
-> FullShot toolbar button or presses its keyboard shortcut, and only for that action. FullShot has
-> no standing access to any website.
+
+```text
+FullShot captures the tab on which the user clicks its toolbar button or presses one of its keyboard shortcuts. activeTab gives it temporary access to that one tab, only after that user action. FullShot uses the access to call chrome.tabs.captureVisibleTab and to run its capture script in the tab. It requests no host permissions, so it has no access to any site before the user acts.
+```
 
 **scripting**
-> Used to inject a small script into the active tab, on demand, that measures the page's full
-> dimensions and scrolls it in steps so each section can be captured and stitched into one
-> full-page image, then restores the page. The script runs only after the user starts a capture; it
-> is not registered as a persistent content script.
+
+```text
+After the user starts a capture, FullShot runs a function from its own package in the active tab with chrome.scripting.executeScript. For a full-page capture, the function measures the page, scrolls it one screen at a time and hides fixed headers after the first screen, so the screens join into one image. After the capture it puts the page back as it was. For an area capture, it shows the selection rectangle. No content script is registered, and no code comes from outside the package.
+```
 
 **storage**
-> Used to save the user's own preferences (image quality, and whether to stamp the page address on
-> PDF exports) with chrome.storage. No browsing data is stored.
+
+```text
+FullShot keeps two user options with chrome.storage: the JPEG/PDF quality and whether to stamp the page address and date on PDF pages. It stores nothing else there.
+```
 
 **unlimitedStorage**
-> A full-page screenshot can be several megabytes. A capture opened in the editor is held in the
-> browser's local IndexedDB to pass it from the background service worker to the editor tab.
-> unlimitedStorage keeps large captures from hitting the default storage quota. Only the 10 most
-> recent editor captures are kept (older ones are deleted automatically); quick exports are not
-> stored. The image stays on the user's device; it is never uploaded.
+
+```text
+A full-page screenshot can be tens of megabytes. To open a capture in the editor, the background service worker writes the image to the extension's IndexedDB and the editor tab reads it. unlimitedStorage stops large captures from failing on the default storage quota. FullShot keeps only the 10 newest captures and deletes older ones automatically. The images stay on the user's device.
+```
 
 **downloads**
-> Used with chrome.downloads to save the finished screenshot or PDF to the user's Downloads folder
-> when they choose to export. It is used for nothing else.
 
-**Host permissions**
-> None requested. FullShot uses activeTab (temporary, user-initiated access to the current tab)
-> instead of broad host permissions, so it never has ongoing access to the sites you visit.
+```text
+FullShot uses chrome.downloads to save the finished PNG, JPEG or PDF file to the user's Downloads folder when the user clicks an export button. It uses it for nothing else.
+```
 
-## Are you using remote code?
+The dashboard shows no host-permission field, because FullShot requests none.
 
-> **No.** All JavaScript and WebAssembly is packaged inside the extension. Nothing is loaded or
-> executed from a remote server, and no code is built from remotely fetched strings. The scripts
-> injected via chrome.scripting are functions defined inside the extension package.
+## Remote code
 
-## Data usage — data types collected
+Select **No, I am not using remote code**.
 
-FullShot does not transmit any data off the user's device, so **no data-type checkboxes should be
-selected**. For reference, here is how each Chrome category applies:
+The package contains all of FullShot's code. The build removes a CDN script address that jsPDF
+keeps for a feature FullShot does not use (see `vite.config.ts`), and `npm run package:chrome`
+stops if a script URL remains.
 
-| Category | Collected? | Notes |
+## Data usage
+
+### What user data do you plan to collect from users now or in the future?
+
+The Chrome Web Store User Data FAQ lists "taking screenshots or capturing data from a web page" as
+handling user data, even when the data stays on the device (questions 2 and 14). So disclose what
+FullShot handles:
+
+| Data type | Select | Reason |
 | --- | --- | --- |
-| Personally identifiable information | No | Not accessed or transmitted. |
-| Health information | No | — |
-| Financial and payment information | No | — |
-| Authentication information | No | — |
-| Personal communications | No | — |
-| Location | No | — |
-| Web history | No | The extension does not read history, URLs, or navigation. |
-| User activity | No | No clicks, keystrokes, or analytics are recorded. |
-| Website content | No (processed locally only) | The screenshot *is* page content, but it is captured, edited, and saved entirely on the device and is never sent to the developer or any third party. Under Chrome's definition, "collect" means transmitting off the device — FullShot does not. |
+| Personally identifiable information | No | FullShot does not read or ask for names, addresses, emails or IDs. |
+| Health information | No | |
+| Financial and payment information | No | |
+| Authentication information | No | |
+| Personal communications | No | |
+| Location | No | |
+| Web history | **Yes** | Each capture opened in the editor is kept with the page address, page title and capture time. The address gives the file name and the optional PDF stamp. |
+| User activity | No | No clicks, keystrokes or usage data are recorded. |
+| Website content | **Yes** | The screenshot is an image of the page content. |
 
-## Data-use certifications (check all three)
+Selecting a type does not say that the data leaves the device. The privacy policy explains that it
+does not. If you think that storing data only on the device is not "collecting", you can leave all
+types unselected; the store then shows that FullShot collects no data. The two selections above are
+the safer choice, because the review rejects items that handle data they did not disclose.
 
-- ☑ **I do not sell or transfer user data to third parties**, outside of the approved use cases.
-- ☑ **I do not use or transfer user data for purposes unrelated to my item's single purpose.**
-- ☑ **I do not use or transfer user data to determine creditworthiness or for lending purposes.**
+### Certifications (select all three)
 
-All three are true: FullShot has no server, no analytics, and no third-party data sharing.
+- [x] I do not sell or transfer user data to third parties, outside of the approved use cases.
+- [x] I do not use or transfer user data for purposes that are unrelated to my item's single
+      purpose.
+- [x] I do not use or transfer user data to determine creditworthiness or for lending purposes.
+
+All three are true: FullShot sends no data to anyone.
 
 ## Privacy policy URL
 
-A privacy policy is required. Host `PRIVACY.md` (in this repo) at a public URL and paste it here.
-Easiest options:
-- **GitHub Pages** or the rendered file URL of `PRIVACY.md` in your repository, or
-- a **GitHub Gist**, or your own website.
+```text
+https://github.com/Penguin-Pants/FullShot/blob/main/PRIVACY.md
+```
 
-Before publishing, fill in the developer name and contact email placeholders in `PRIVACY.md`.
+The link works only while the repository is public. The policy includes the Limited Use statement
+that the User Data Policy asks for.
