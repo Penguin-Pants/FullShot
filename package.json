@@ -18,7 +18,9 @@
     "build:firefox:only": "node scripts/build-firefox.mjs",
     "build:firefox:test": "FULLSHOT_TEST=1 FIREFOX_OUT_DIR=dist-firefox-test node scripts/build-firefox.mjs",
     "lint:firefox": "web-ext lint -s dist-firefox --self-hosted",
-    "package:firefox": "node scripts/package-firefox.mjs"
+    "package:firefox": "node scripts/package-firefox.mjs",
+    "package:chrome": "node scripts/package-chrome.mjs",
+    "store:assets": "npm run build:test && xvfb-run -a -s \"-screen 0 1600x1200x24\" node test/e2e/screenshots.mjs"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0-beta.28",

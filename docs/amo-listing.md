@@ -91,7 +91,7 @@ None. AMO only accepts tags from a fixed list, and none of them fits a screensho
 
 None needed. AMO asks for a privacy policy only when an add-on sends user data, and FullShot sends
 none (the manifest declares `data_collection_permissions: none`). If you add one anyway, use
-`PRIVACY.md` and fill in its developer name and email first.
+`PRIVACY.md` (the same policy as the Chrome Web Store listing).
 
 ## Support and homepage
 

@@ -1,7 +1,21 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { crx } from '@crxjs/vite-plugin';
 import { resolve } from 'node:path';
 import manifest from './src/manifest.config';
+
+// jsPDF's output('pdfobjectnewwindow') opens a window that loads PDFObject from cdnjs.cloudflare.com.
+// FullShot never calls it (exportPdf.ts calls output('blob')), but the Chrome Web Store review can
+// reject a package that contains a remote script URL as remotely hosted code. Remove the URL from
+// the bundle; scripts/package-chrome.mjs stops if a remote script URL is still in the build.
+const PDFOBJECT_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pdfobject/2.1.1/pdfobject.min.js';
+const stripJsPdfCdnUrl: Plugin = {
+  name: 'fullshot-strip-jspdf-cdn-url',
+  enforce: 'pre',
+  transform(code, id) {
+    if (!id.includes('/node_modules/jspdf/') || !code.includes(PDFOBJECT_CDN)) return null;
+    return { code: code.split(PDFOBJECT_CDN).join(''), map: null };
+  },
+};
 
 export default defineConfig({
   define: {
@@ -30,7 +44,7 @@ export default defineConfig({
       external: ['html2canvas', 'dompurify', 'canvg'],
     },
   },
-  plugins: [crx({ manifest })],
+  plugins: [stripJsPdfCdnUrl, crx({ manifest })],
   server: {
     port: 5173,
     strictPort: true,

@@ -43,6 +43,30 @@ Then load it unpacked:
 
 `npm run dev` runs Vite with HMR for iterating on the popup/editor/options pages.
 
+## Publishing on the Chrome Web Store
+
+Commit your changes, then run:
+
+```bash
+npm run package:chrome
+```
+
+It builds the extension from a clean copy of the last commit (`npm ci`, then `npm run build`) and
+writes `web-ext-artifacts/fullshot-chrome-<version>.zip`. Upload that file in the Chrome Web Store
+Developer Dashboard. The script stops if the working tree has uncommitted changes or untracked
+files, or if the build has host permissions, the test hook, source maps or a remote script URL.
+
+The Chrome build removes one remote script URL from the bundled jsPDF (a PDFObject CDN address
+for its `pdfobjectnewwindow` output, which FullShot never uses), because the store review can
+treat such a URL as remote code. See `vite.config.ts`.
+
+Paste-ready answers for every dashboard tab are in
+[`docs/chrome-web-store-listing.md`](docs/chrome-web-store-listing.md) and
+[`docs/chrome-web-store-privacy.md`](docs/chrome-web-store-privacy.md). The store images
+(screenshots, promo tiles and store icon) are in [`docs/chrome-web-store/`](docs/chrome-web-store/).
+To make them again after a UI change, run `npm run store:assets` (and `node scripts/gen-icons.mjs`
+for the store icon).
+
 ## Firefox build
 
 ```bash
@@ -131,6 +155,8 @@ reviewers) are in [`docs/amo-listing.md`](docs/amo-listing.md).
 | MV3 manifest — Chrome/Edge | `src/manifest.config.ts`, `vite.config.ts` (`@crxjs/vite-plugin`) → `dist/` |
 | MV3 manifest — Firefox | `src/manifest.firefox.ts`, `vite.config.firefox.ts`, `scripts/build-firefox.mjs` → `dist-firefox/` |
 | AMO packaging | `scripts/package-firefox.mjs` → `web-ext-artifacts/` (add-on zip and source zip) |
+| Chrome Web Store packaging | `scripts/package-chrome.mjs` → `web-ext-artifacts/` (extension zip) |
+| Store images | `test/e2e/screenshots.mjs` (demo page `test/fixtures/store-demo.html`), `scripts/gen-icons.mjs` → `docs/chrome-web-store/` |
 | Capture orchestration | `src/background/index.ts` (target-tab checks, one capture at a time, throttled `captureVisibleTab`, stage-tagged errors) |
 | Page measurement / scroll / fixed-element hiding | `src/lib/pageScripts.ts` (injected via `executeScript({ func })`) |
 | Tile stitching | `src/lib/stitch.ts` (OffscreenCanvas, DPR-aware, canvas-size guard) |

@@ -1,3 +1,5 @@
 # Packaged builds are not source code: keep them out of `git archive`, which makes the AMO source
 # zip (scripts/package-firefox.mjs).
 *.zip export-ignore
+# Store images are listing material, not source code.
+docs/chrome-web-store/*.png export-ignore
