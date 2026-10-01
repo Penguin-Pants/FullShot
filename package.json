@@ -35,5 +35,8 @@
   "dependencies": {
     "fabric": "^7.4.0",
     "jspdf": "^4.2.1"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

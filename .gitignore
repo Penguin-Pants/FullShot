@@ -8,3 +8,6 @@ dist-firefox/
 dist-firefox-test/
 test/e2e/out/
 *.zip
+.env
+.env.*
+!.env.example
