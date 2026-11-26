@@ -147,3 +147,9 @@ You are cherished.
 - No Oxford commas
 - Maintain consistent headers, bold cues, and compact bullets
 - Avoid "This isn't X, it's Y" constructions
+
+## Required shared instructions
+
+Before any work, read and follow `.agents/shared/instructions.md`. Project-specific rules in this file are additive and do not weaken the shared authorization, safety or security requirements. Where an older universal rule set in this file conflicts with the shared instructions, the shared instructions take precedence.
+
+@.agents/shared/instructions.md
