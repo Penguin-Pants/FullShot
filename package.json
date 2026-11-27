@@ -36,7 +36,7 @@
     "fabric": "^7.4.0",
     "jspdf": "^4.2.1"
   },
-  "overrides": {
-    "@asamuzakjp/css-color@>=0.0.1 <=7.0.0": "7.0.1"
+  "engines": {
+    "node": ">=22.12"
   }
 }
